@@ -93,6 +93,25 @@
   .req-status.pending{background:rgba(212,166,42,.15);color:var(--gold);}
   .req-status.approved{background:rgba(46,160,67,.15);color:#4fd371;}
   .req-status.rejected{background:rgba(224,38,63,.15);color:var(--accent);}
+
+  /* ---------- Mobile refinements ---------- */
+  @media (max-width:640px){
+    .login-wrap{margin:60px auto;}
+    .dash{padding:24px 14px 60px;}
+    .dash-header{flex-wrap:wrap;gap:10px;}
+    .dash-title{font-size:24px;}
+    .card-form{padding:16px;}
+    .grid-2{grid-template-columns:1fr;gap:10px;}
+    .dash-tabs{width:100%;overflow-x:auto;}
+    .dash-tab{padding:9px 14px;font-size:12px;white-space:nowrap;}
+    .list-item{padding:10px;gap:10px;}
+    .list-thumb{width:42px;height:63px;}
+    .list-info .t{font-size:13px;}
+    .req-item{padding:12px;gap:10px;}
+    .req-actions{width:100%;}
+    .approve-btn,.reject-btn{flex:1;}
+    .btn{width:100%;}
+  }
 </style>
 </head>
 <body>
