@@ -219,9 +219,12 @@ const firebaseConfig = {
   appId: "1:794583348977:web:ad328082797449cd42db50",
   measurementId: "G-9W99RKQPVQ"
 };
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// "adminApp" ဆိုပြီး app instance ကို သီးခြားနာမည်ပေးထားလို့
+// Data (movies/premiumRequests/users) က project တူတူသုံးပေမယ့်
+// login session ကတော့ Public site ရဲ့ default app နဲ့ လုံးဝမတူတော့ပါ
+const adminFirebaseApp = firebase.initializeApp(firebaseConfig, "adminApp");
+const auth = adminFirebaseApp.auth();
+const db = adminFirebaseApp.firestore();
 
 /* =========================================================
    2) BUNNY.NET STORAGE CONFIG — Bunny dashboard > Storage > (your zone) > FTP & API Access ကနေ ကူးထည့်ပါ
