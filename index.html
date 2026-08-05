@@ -219,12 +219,9 @@ const firebaseConfig = {
   appId: "1:794583348977:web:ad328082797449cd42db50",
   measurementId: "G-9W99RKQPVQ"
 };
-// "adminApp" ဆိုပြီး app instance ကို သီးခြားနာမည်ပေးထားလို့
-// Data (movies/premiumRequests/users) က project တူတူသုံးပေမယ့်
-// login session ကတော့ Public site ရဲ့ default app နဲ့ လုံးဝမတူတော့ပါ
-const adminFirebaseApp = firebase.initializeApp(firebaseConfig, "adminApp");
-const auth = adminFirebaseApp.auth();
-const db = adminFirebaseApp.firestore();
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
 /* =========================================================
    2) BUNNY.NET STORAGE CONFIG — Bunny dashboard > Storage > (your zone) > FTP & API Access ကနေ ကူးထည့်ပါ
@@ -239,6 +236,11 @@ const PLACEHOLDER_THUMB = "data:image/svg+xml;utf8," + encodeURIComponent(
 function esc(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const CATEGORY_LABEL = { original: 'Own', drama: 'Short Drama', adult: '18+' };
 const PREMIUM_DURATION_DAYS = 30; // Approve လုပ်ရင် ဒီရက်ပေါင်းအတိုင်း premium ရမယ် — ချင်ရင် ဒီကို ပြောင်းလို့ရ
+
+/* =========================================================
+   1b) ADMIN ALLOWLIST — Firestore rules ထဲက admin uid အတိုင်းပဲ
+   ========================================================= */
+const ADMIN_UID = "W5AhXhm7TCdOiAP6tvdRwaIfcwn2";
 
 let videoFile = null, thumbFile = null;
 
@@ -275,7 +277,7 @@ document.getElementById('loginBtn').addEventListener('click', () => {
 document.getElementById('logoutBtn').addEventListener('click', () => auth.signOut());
 
 auth.onAuthStateChanged(user => {
-  if(user){
+  if(user && user.uid === ADMIN_UID){
     document.getElementById('loginWrap').style.display = 'none';
     document.getElementById('dash').style.display = 'block';
     document.getElementById('whoami').textContent = user.email + ' အနေဖြင့် login ဝင်ထားသည်';
@@ -284,6 +286,13 @@ auth.onAuthStateChanged(user => {
   } else {
     document.getElementById('loginWrap').style.display = 'block';
     document.getElementById('dash').style.display = 'none';
+    if(user){
+      // Public site ကနေ login ဝင်ထားတဲ့ account (admin မဟုတ်) — ချက်ချင်း logout
+      auth.signOut();
+      const el = document.getElementById('loginErr');
+      el.textContent = 'ဒီ account က Admin permission မရှိပါ';
+      el.classList.add('show');
+    }
   }
 });
 
