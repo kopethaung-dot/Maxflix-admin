@@ -169,6 +169,7 @@
   <div class="dash-tabs">
     <button class="dash-tab active" id="tabContent">Content</button>
     <button class="dash-tab" id="tabPremium">Premium Requests <span id="pendingBadge"></span></button>
+    <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
   </div>
 
   <div class="panel open" id="panelContent">
@@ -249,6 +250,21 @@
     <p class="helper" style="margin-bottom:18px;">User များ တင်သွင်းထားတဲ့ KBZPay/WavePay Transaction ID များကို စစ်ဆေးပြီး Approve/Reject လုပ်ပါ</p>
     <div id="requestList"></div>
   </div>
+
+  <div class="panel" id="panelAdultPin">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">18+ PIN</div>
+    <p class="helper" style="margin-bottom:18px;">Customer ရဲ့ email ထည့်ပြီး "Generate PIN" နှိပ်ပါ — 6 လုံး random PIN ထွက်ပြီး 5 ရက် အတွင်း အလုပ်လုပ်ပါမယ် (customer login ဝင်ထားမှသာ PIN သုံးလို့ရပါမယ်)</p>
+    <div class="card-form" style="margin-bottom:24px;">
+      <div class="grid-2">
+        <div class="field"><label>Customer Email *</label><input type="email" id="fPinEmail" placeholder="customer@gmail.com"></div>
+        <div class="field" style="display:flex;align-items:flex-end;"><button class="btn btn-primary" id="genPinBtn" style="width:100%;">🎲 Generate PIN</button></div>
+      </div>
+      <div class="status status-ok" id="pinGenResult" style="display:none;"></div>
+      <div class="status status-err" id="pinGenErr" style="display:none;"></div>
+    </div>
+    <div class="dash-title" style="font-size:18px;margin-bottom:10px;">လက်ရှိ PIN ရှိသူများ</div>
+    <div id="adultPinList"></div>
+  </div>
 </div>
 
 <div id="toastWrap" class="toast-wrap"></div>
@@ -304,11 +320,14 @@ function showToast(msg, type){
 /* ---------- Dashboard tab switching ---------- */
 document.getElementById('tabContent').addEventListener('click', () => switchDashTab('content'));
 document.getElementById('tabPremium').addEventListener('click', () => switchDashTab('premium'));
+document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
+  document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
+  document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
 }
 
 /* ---------- Toggle Series/Episode fields for Short Drama ---------- */
@@ -340,6 +359,7 @@ auth.onAuthStateChanged(user => {
     document.getElementById('whoami').textContent = user.email + ' အနေဖြင့် login ဝင်ထားသည်';
     listenMovies();
     listenPremiumRequests();
+    listenAdultPins();
   } else {
     document.getElementById('loginWrap').style.display = 'block';
     document.getElementById('dash').style.display = 'none';
@@ -639,6 +659,71 @@ function listenPremiumRequests(){
         }catch(err){ showToast('Reject မလုပ်နိုင်ပါ — ' + err.message); }
       });
     });
+  });
+}
+
+/* ---------- 18+ PIN ---------- */
+const ADULT_PIN_DURATION_DAYS = 5;
+
+function generateRandomPin(){
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit random
+}
+
+document.getElementById('genPinBtn').addEventListener('click', async () => {
+  const email = document.getElementById('fPinEmail').value.trim();
+  const okEl = document.getElementById('pinGenResult');
+  const errEl = document.getElementById('pinGenErr');
+  okEl.style.display = 'none'; errEl.style.display = 'none';
+  if(!email){ errEl.textContent = 'Customer email ဖြည့်ပါ'; errEl.style.display = 'block'; return; }
+  try{
+    const snap = await db.collection('users').where('email', '==', email).limit(1).get();
+    if(snap.empty){ errEl.textContent = 'ဒီ email နဲ့ account ရှာမတွေ့ပါ — customer အရင် site ထဲ login/signup ဝင်ဖို့ လိုပါတယ်'; errEl.style.display = 'block'; return; }
+    const uid = snap.docs[0].id;
+    const pin = generateRandomPin();
+    const expiresAt = firebase.firestore.Timestamp.fromDate(
+      new Date(Date.now() + ADULT_PIN_DURATION_DAYS * 24 * 60 * 60 * 1000)
+    );
+    await db.collection('users').doc(uid).set({ adultPin: pin, adultPinExpiresAt: expiresAt }, { merge: true });
+    okEl.textContent = `PIN: ${pin}  —  ${email} အတွက် ${ADULT_PIN_DURATION_DAYS} ရက် သက်တမ်းရှိပါမယ် — customer ကို ဒီ PIN ကို ပို့ပေးပါ`;
+    okEl.style.display = 'block';
+    document.getElementById('fPinEmail').value = '';
+  }catch(err){ errEl.textContent = 'PIN Generate မလုပ်နိုင်ပါ — ' + err.message; errEl.style.display = 'block'; }
+});
+
+function listenAdultPins(){
+  db.collection('users').where('adultPin', '!=', null).onSnapshot(snap => {
+    const list = document.getElementById('adultPinList');
+    if(!list) return;
+    if(snap.empty){ list.innerHTML = `<div class="empty">PIN ထုတ်ထားသူ မရှိသေးပါ</div>`; return; }
+    const now = Date.now();
+    list.innerHTML = snap.docs.map(d => {
+      const u = d.data();
+      const expiresMs = u.adultPinExpiresAt ? (u.adultPinExpiresAt.toMillis ? u.adultPinExpiresAt.toMillis() : u.adultPinExpiresAt) : 0;
+      const expired = now > expiresMs;
+      const expiresStr = expiresMs ? new Date(expiresMs).toLocaleString('en-GB') : '—';
+      return `<div class="req-item">
+        <div class="req-info">
+          <div class="t">${esc(u.email || d.id)}</div>
+          <div class="m">PIN: <b>${esc(u.adultPin)}</b> · <span class="req-status ${expired ? 'rejected' : 'approved'}">${expired ? 'သက်တမ်းကုန်' : 'အသုံးပြုနိုင်'}</span></div>
+          <div class="txn">သက်တမ်းကုန်ရက်: ${expiresStr}</div>
+        </div>
+        <div class="req-actions">
+          <button class="reject-btn" data-uid="${d.id}">✕ Revoke</button>
+        </div>
+      </div>`;
+    }).join('');
+    list.querySelectorAll('.reject-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try{
+          await db.collection('users').doc(btn.dataset.uid).set({ adultPin: firebase.firestore.FieldValue.delete(), adultPinExpiresAt: firebase.firestore.FieldValue.delete() }, { merge: true });
+          showToast('PIN ကို revoke လုပ်ပြီးပါပြီ', 'ok');
+        }catch(err){ showToast('Revoke မလုပ်နိုင်ပါ — ' + err.message); }
+      });
+    });
+  }, err => {
+    // Firestore needs adultPin to exist on at least one doc, or an index, for '!=' queries — fail quietly until then
+    const list = document.getElementById('adultPinList');
+    if(list) list.innerHTML = `<div class="empty">List ကို load လုပ်၍ မရပါ — ${esc(err.message)}</div>`;
   });
 }
 </script>
