@@ -93,16 +93,6 @@
   .req-status.pending{background:rgba(212,166,42,.15);color:var(--gold);}
   .req-status.approved{background:rgba(46,160,67,.15);color:#4fd371;}
   .req-status.rejected{background:rgba(224,38,63,.15);color:var(--accent);}
-  <body>
-  <!-- Admin Dashboard UI အခြားအပိုင်းတွေ -->
-
-  <h2>Video Player Test</h2>
-  <video id="videoPlayer" controls></video>
-  <button onclick="playVideo('Immortal52.mp4')">Play Video</button>
-
-  <!-- Script ကို အောက်မှာ ထည့်ပါ -->
-</body>
-
 
   /* ---------- Mobile refinements ---------- */
   @media (max-width:640px){
@@ -325,15 +315,7 @@
   </div>
 </div>
 
-<div id="toastWrap" class="toast-wrap"></div><body>
-  <!-- မင်းရှိပြီးသား Admin Dashboard UI -->
-
-  <h2>Upload New File</h2>
-  <input type="file" id="fileInput" />
-  <button id="uploadBtn">Upload</button>
-
-  <!-- အောက်မှာ script ထည့်ထားပြီးသား -->
-</body>
+<div id="toastWrap" class="toast-wrap"></div>
 
 <script>
 /* =========================================================
@@ -908,43 +890,5 @@ document.getElementById('bannerRemoveBtn').addEventListener('click', async () =>
   }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
 });
 </script>
-</body><script>async function uploadFile(file) {
-  // Step 1: Signed URL ရယူ
-  const res = await fetch(
-    `https://maxflix-admin.vercel.app/api/get-signed-url?filename=${file.name}`
-  );
-  const { url } = await res.json();
-
-  // Step 2: File ကို Cloudflare R2 storage သို့ PUT request ပို့
-  await fetch(url, {
-    method: "PUT",
-    body: file,
-    headers: {
-      "Content-Type": file.type,
-    },
-  });
-
-  alert("Upload success!");
-}
-
-// Example: Admin Dashboard မှာ button ချိတ်
-document.getElementById("uploadBtn").addEventListener("click", () => {
-  const fileInput = document.getElementById("fileInput");
-  const file = fileInput.files[0];
-  if (file) {
-    uploadFile(file);
-  } else {
-    alert("Please select a file first!");
-  }
-});
-</script><script>
-  async function playVideo(filename) {
-    const res = await fetch(
-      `https://maxflix-admin.vercel.app/api/get-download-url?filename=${filename}`
-    );
-    const { url } = await res.json();
-    document.getElementById("videoPlayer").src = url;
-  }
-</script>
-
+</body>
 </html>
