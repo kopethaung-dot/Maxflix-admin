@@ -315,7 +315,15 @@
   </div>
 </div>
 
-<div id="toastWrap" class="toast-wrap"></div>
+<div id="toastWrap" class="toast-wrap"></div><body>
+  <!-- မင်းရှိပြီးသား Admin Dashboard UI -->
+
+  <h2>Upload New File</h2>
+  <input type="file" id="fileInput" />
+  <button id="uploadBtn">Upload</button>
+
+  <!-- အောက်မှာ script ထည့်ထားပြီးသား -->
+</body>
 
 <script>
 /* =========================================================
@@ -890,5 +898,34 @@ document.getElementById('bannerRemoveBtn').addEventListener('click', async () =>
   }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
 });
 </script>
-</body>
+</body><script>async function uploadFile(file) {
+  // Step 1: Signed URL ရယူ
+  const res = await fetch(
+    `https://maxflix-admin.vercel.app/api/get-signed-url?filename=${file.name}`
+  );
+  const { url } = await res.json();
+
+  // Step 2: File ကို Cloudflare R2 storage သို့ PUT request ပို့
+  await fetch(url, {
+    method: "PUT",
+    body: file,
+    headers: {
+      "Content-Type": file.type,
+    },
+  });
+
+  alert("Upload success!");
+}
+
+// Example: Admin Dashboard မှာ button ချိတ်
+document.getElementById("uploadBtn").addEventListener("click", () => {
+  const fileInput = document.getElementById("fileInput");
+  const file = fileInput.files[0];
+  if (file) {
+    uploadFile(file);
+  } else {
+    alert("Please select a file first!");
+  }
+});
+</script>
 </html>
