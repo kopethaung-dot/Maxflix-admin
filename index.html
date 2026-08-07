@@ -93,6 +93,16 @@
   .req-status.pending{background:rgba(212,166,42,.15);color:var(--gold);}
   .req-status.approved{background:rgba(46,160,67,.15);color:#4fd371;}
   .req-status.rejected{background:rgba(224,38,63,.15);color:var(--accent);}
+  <body>
+  <!-- Admin Dashboard UI အခြားအပိုင်းတွေ -->
+
+  <h2>Video Player Test</h2>
+  <video id="videoPlayer" controls></video>
+  <button onclick="playVideo('Immortal52.mp4')">Play Video</button>
+
+  <!-- Script ကို အောက်မှာ ထည့်ပါ -->
+</body>
+
 
   /* ---------- Mobile refinements ---------- */
   @media (max-width:640px){
@@ -927,5 +937,14 @@ document.getElementById("uploadBtn").addEventListener("click", () => {
     alert("Please select a file first!");
   }
 });
+</script><script>
+  async function playVideo(filename) {
+    const res = await fetch(
+      `https://maxflix-admin.vercel.app/api/get-download-url?filename=${filename}`
+    );
+    const { url } = await res.json();
+    document.getElementById("videoPlayer").src = url;
+  }
 </script>
+
 </html>
