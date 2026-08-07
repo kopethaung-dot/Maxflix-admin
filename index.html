@@ -170,6 +170,7 @@
     <button class="dash-tab active" id="tabContent">Content</button>
     <button class="dash-tab" id="tabPremium">Premium Requests <span id="pendingBadge"></span></button>
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
+    <button class="dash-tab" id="tabBanner">Banner</button>
   </div>
 
   <div class="panel open" id="panelContent">
@@ -208,6 +209,16 @@
       </div>
       <div class="progress-wrap" id="videoProgressWrap"><div class="progress-bar" id="videoProgressBar"></div></div>
       <div class="progress-label" id="videoProgressLabel"></div>
+    </div>
+
+    <div class="field">
+      <label>Mobile-friendly Video (optional — lower bitrate/size version)</label>
+      <p class="helper" style="margin-bottom:8px;">ဒါကို ထည့်ရင် mobile screen (သို့) internet နှေးတဲ့ user တွေအတွက် ဒီဖိုင်ငယ်ကို အလိုအလျောက် ရွေးပေးပါမယ် — မထည့်ရင် main video ကိုပဲ everyone ကြည့်ရမှာပါ</p>
+      <div class="drop-zone" id="videoMobileDrop">
+        <input type="file" id="fVideoMobileFile" accept="video/*">
+        <span id="videoMobileDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး mobile version ချပါ (optional)</span>
+        <div class="file-name" id="videoMobileFileName"></div>
+      </div>
     </div>
 
     <div class="field">
@@ -265,6 +276,43 @@
     <div class="dash-title" style="font-size:18px;margin-bottom:10px;">လက်ရှိ PIN ရှိသူများ</div>
     <div id="adultPinList"></div>
   </div>
+
+  <div class="panel" id="panelBanner">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Promo Banner</div>
+    <p class="helper" style="margin-bottom:18px;">Home page ထဲ Hero အောက်၊ ဇာတ်ကား row များ အပေါ်မှာ ပြမည့် ပုံ Banner — click လုပ်ရင် link ကို သွားစေနိုင်ပါတယ်</p>
+
+    <div class="card-form">
+      <div id="bannerPreviewWrap" style="display:none;margin-bottom:16px;">
+        <label style="margin-bottom:8px;">လက်ရှိ Banner</label>
+        <img id="bannerPreviewImg" style="width:100%;max-width:420px;border-radius:6px;border:1px solid var(--line);display:block;">
+      </div>
+
+      <div class="field">
+        <label>Banner ပုံ * (click သို့မဟုတ် drag ဆွဲပြီး ပုံချပါ)</label>
+        <div class="drop-zone" id="bannerDrop">
+          <input type="file" id="fBannerFile" accept="image/*">
+          <span id="bannerDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး ပုံချပါ</span>
+          <div class="file-name" id="bannerFileName"></div>
+        </div>
+        <div class="progress-wrap" id="bannerProgressWrap"><div class="progress-bar" id="bannerProgressBar"></div></div>
+        <div class="progress-label" id="bannerProgressLabel"></div>
+      </div>
+
+      <div class="field"><label>Link URL (optional — click လုပ်ရင် ဒီ link ကို သွားပါမယ်)</label>
+        <input type="text" id="fBannerLink" placeholder="https://..."></div>
+
+      <div class="field"><label>Banner ပြမလား</label>
+        <select id="fBannerEnabled"><option value="yes">ပြရန် (Enabled)</option><option value="no">မပြရန် (Disabled)</option></select>
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" id="bannerSaveBtn" style="flex:1;">💾 Banner သိမ်းမည်</button>
+        <button class="btn btn-ghost" id="bannerRemoveBtn" style="flex:1;">🗑️ Banner ဖျက်မည်</button>
+      </div>
+      <div class="status status-ok" id="bannerStatusOk" style="margin-top:14px;">✓ Banner သိမ်းဆည်းပြီးပါပြီ</div>
+      <div class="status status-err" id="bannerStatusErr" style="margin-top:14px;"></div>
+    </div>
+  </div>
 </div>
 
 <div id="toastWrap" class="toast-wrap"></div>
@@ -291,7 +339,7 @@ const db = firebase.app("adminApp").firestore();
       Bunny API key ကို browser ထဲ မထားတော့ပါ — Worker ထဲမှာပဲ secret အနေနဲ့ သိမ်းထားတယ်
    ========================================================= */
 const WORKER_URL = "https://tight-sound-80c6.kopethaung.workers.dev";
-const BUNNY_PULL_ZONE_URL = "https://cdn.maxflixstream.com";
+const PULL_ZONE_URL = "https://cdn.maxflixstream.com"; // for reference only — publicUrl now comes back from the Worker directly
 
 const PLACEHOLDER_THUMB = "data:image/svg+xml;utf8," + encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='78'><rect width='52' height='78' fill='%23222'/></svg>`);
@@ -304,7 +352,7 @@ const PREMIUM_DURATION_DAYS = 30; // Approve လုပ်ရင် ဒီရက�
    ========================================================= */
 const ADMIN_UID = "W5AhXhm7TCdOiAP6tvdRwaIfcwn2";
 
-let videoFile = null, thumbFile = null;
+let videoFile = null, thumbFile = null, videoMobileFile = null;
 let editingId = null; // set when editing an existing movie instead of adding a new one
 
 function showToast(msg, type){
@@ -321,13 +369,16 @@ function showToast(msg, type){
 document.getElementById('tabContent').addEventListener('click', () => switchDashTab('content'));
 document.getElementById('tabPremium').addEventListener('click', () => switchDashTab('premium'));
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
+document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
 function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
+  document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
+  document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
 }
 
 /* ---------- Toggle Series/Episode fields for Short Drama ---------- */
@@ -360,6 +411,7 @@ auth.onAuthStateChanged(user => {
     listenMovies();
     listenPremiumRequests();
     listenAdultPins();
+    listenBanner();
   } else {
     document.getElementById('loginWrap').style.display = 'block';
     document.getElementById('dash').style.display = 'none';
@@ -391,28 +443,45 @@ function wireDrop(dropId, inputId, labelId, nameId, onFile){
   }
 }
 wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => videoFile = f);
+wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobileFileName', f => videoMobileFile = f);
 wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => thumbFile = f);
+wireDrop('bannerDrop','fBannerFile','bannerDropLabel','bannerFileName', f => bannerFile = f);
 
 /* ---------- Upload/Delete helper (via Cloudflare Worker → Bunny.net) ---------- */
 async function uploadFile(file, path, onProgress){
   const idToken = await auth.currentUser.getIdToken();
+
+  // Step 1: ask the Worker for a short-lived presigned R2 upload URL.
+  // (The Worker no longer receives the file bytes itself — Cloudflare
+  // Workers reject request bodies over ~100MB at the edge, which is why
+  // large videos used to fail. This GET just returns a signed PUT URL.)
+  const presignRes = await fetch(WORKER_URL, {
+    method: 'GET',
+    headers: { 'Authorization': 'Bearer ' + idToken, 'X-File-Path': path }
+  });
+  if(!presignRes.ok){
+    const bodyText = await presignRes.text().catch(() => '');
+    throw new Error(`Upload URL မရနိုင်ပါ (${presignRes.status}) — ${bodyText || 'Worker URL/login စစ်ကြည့်ပါ'}`);
+  }
+  const { uploadUrl, publicUrl } = await presignRes.json();
+
+  // Step 2: PUT the actual file bytes directly to R2 using that presigned
+  // URL — this bypasses the Worker's body-size limit entirely (R2 allows
+  // single PUTs up to 5GB), and we can still track upload progress here.
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('PUT', WORKER_URL, true);
-    xhr.setRequestHeader('Authorization', 'Bearer ' + idToken);
-    xhr.setRequestHeader('X-File-Path', path);
+    xhr.open('PUT', uploadUrl, true);
     xhr.upload.onprogress = e => {
       if(e.lengthComputable && onProgress) onProgress((e.loaded / e.total) * 100);
     };
     xhr.onload = () => {
       if(xhr.status >= 200 && xhr.status < 300){
-        try { resolve(JSON.parse(xhr.responseText)); }
-        catch(e){ resolve({ url: `${BUNNY_PULL_ZONE_URL}/${path}`, path }); }
+        resolve({ url: publicUrl, path });
       } else {
-        reject(new Error(`Upload failed (${xhr.status}) — ${xhr.responseText || 'Worker URL/login စစ်ကြည့်ပါ'}`));
+        reject(new Error(`Upload failed (${xhr.status}) — storage bucket ရဲ့ CORS policy ကို စစ်ကြည့်ပါ`));
       }
     };
-    xhr.onerror = () => reject(new Error('Network error — Worker URL/CORS ကို စစ်ကြည့်ပါ'));
+    xhr.onerror = () => reject(new Error('Network error — storage bucket ရဲ့ CORS policy ကို စစ်ကြည့်ပါ'));
     xhr.send(file);
   });
 }
@@ -462,6 +531,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
     const id = editingId || ('m_' + Date.now());
     let videoResult = editingId ? { url: editingMovieData.videoUrl, path: editingMovieData.videoPath } : null;
     let thumbResult = editingId ? { url: editingMovieData.thumbUrl, path: editingMovieData.thumbPath } : null;
+    let videoMobileResult = editingId ? { url: editingMovieData.videoUrlMobile, path: editingMovieData.videoPathMobile } : null;
 
     if(videoFile){
       const oldVideoPath = editingId ? editingMovieData.videoPath : null;
@@ -470,6 +540,15 @@ document.getElementById('addBtn').addEventListener('click', async () => {
         document.getElementById('videoProgressLabel').textContent = `Video: ${pct.toFixed(0)}%`;
       });
       if(oldVideoPath) deleteFromBunny(oldVideoPath).catch(()=>{});
+    }
+    if(videoMobileFile){
+      const oldVideoMobilePath = editingId ? editingMovieData.videoPathMobile : null;
+      document.getElementById('videoProgressLabel').textContent = 'Mobile video upload လုပ်နေသည်...';
+      videoMobileResult = await uploadFile(videoMobileFile, `videos/${id}_mobile_${videoMobileFile.name}`, pct => {
+        document.getElementById('videoProgressBar').style.width = pct + '%';
+        document.getElementById('videoProgressLabel').textContent = `Mobile video: ${pct.toFixed(0)}%`;
+      });
+      if(oldVideoMobilePath) deleteFromBunny(oldVideoMobilePath).catch(()=>{});
     }
     if(thumbFile){
       const oldThumbPath = editingId ? editingMovieData.thumbPath : null;
@@ -483,6 +562,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
       seriesName: category === 'drama' ? seriesName : null,
       episodeNumber: category === 'drama' ? episodeNumber : null,
       videoUrl: videoResult ? videoResult.url : null, videoPath: videoResult ? videoResult.path : null,
+      videoUrlMobile: videoMobileResult ? (videoMobileResult.url || null) : null,
+      videoPathMobile: videoMobileResult ? (videoMobileResult.path || null) : null,
       thumbUrl: thumbResult ? thumbResult.url : null, thumbPath: thumbResult ? thumbResult.path : null
     };
     if(editingId){
@@ -512,11 +593,12 @@ function resetContentForm(){
   document.getElementById('fCategory').value = 'original';
   toggleDramaFields();
   document.getElementById('videoFileName').textContent = '';
+  document.getElementById('videoMobileFileName').textContent = '';
   document.getElementById('thumbFileName').textContent = '';
   document.getElementById('videoProgressWrap').classList.remove('show');
   document.getElementById('videoProgressBar').style.width = '0%';
   document.getElementById('videoProgressLabel').textContent = '';
-  videoFile = null; thumbFile = null;
+  videoFile = null; thumbFile = null; videoMobileFile = null;
 }
 
 /* ---------- Edit mode ---------- */
@@ -532,8 +614,9 @@ function enterEditMode(id, m){
   document.getElementById('fFeatured').value = m.featured ? 'yes' : 'no';
   document.getElementById('fPremium').value = m.isPremium ? 'yes' : 'no';
   document.getElementById('fDesc').value = m.desc || '';
-  videoFile = null; thumbFile = null;
+  videoFile = null; thumbFile = null; videoMobileFile = null;
   document.getElementById('videoFileName').textContent = m.videoUrl ? '✓ လက်ရှိ video ကို ဆက်သုံးမည် (မပြောင်းလိုလျှင် ဒီနေရာကို ချန်ထားပါ)' : '';
+  document.getElementById('videoMobileFileName').textContent = m.videoUrlMobile ? '✓ လက်ရှိ mobile video ကို ဆက်သုံးမည်' : '';
   document.getElementById('thumbFileName').textContent = m.thumbUrl ? '✓ လက်ရှိ thumbnail ကို ဆက်သုံးမည်' : '';
   document.getElementById('videoDropLabel').textContent = 'Click သို့မဟုတ် drag ဆွဲပြီး video အသစ်ချပါ (optional — ပြောင်းလိုမှသာ)';
   document.getElementById('addBtn').textContent = '💾 Update လုပ်မည်';
@@ -578,7 +661,7 @@ function listenMovies(){
         </div>
         <div class="list-actions">
           <button class="edit-btn" data-id="${d.id}">ပြင်မည်</button>
-          <button class="del-btn" data-id="${d.id}" data-video="${esc(m.videoPath||'')}" data-thumb="${esc(m.thumbPath||'')}">ဖျက်မည်</button>
+          <button class="del-btn" data-id="${d.id}" data-video="${esc(m.videoPath||'')}" data-videomobile="${esc(m.videoPathMobile||'')}" data-thumb="${esc(m.thumbPath||'')}">ဖျက်မည်</button>
         </div>
       </div>`;
     }).join('');
@@ -593,9 +676,10 @@ function listenMovies(){
     list.querySelectorAll('.del-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         if(!confirm('ဖျက်မှာ သေချာပါသလား?')) return;
-        const { id, video, thumb } = btn.dataset;
+        const { id, video, videomobile, thumb } = btn.dataset;
         try{
           if(video) await deleteFromBunny(video).catch(()=>{});
+          if(videomobile) await deleteFromBunny(videomobile).catch(()=>{});
           if(thumb) await deleteFromBunny(thumb).catch(()=>{});
           await db.collection('movies').doc(id).delete();
           if(editingId === id){ resetContentForm(); exitEditMode(); }
@@ -726,6 +810,85 @@ function listenAdultPins(){
     if(list) list.innerHTML = `<div class="empty">List ကို load လုပ်၍ မရပါ — ${esc(err.message)}</div>`;
   });
 }
+
+/* ---------- Promo Banner ---------- */
+let bannerFile = null;
+let currentBannerData = null;
+
+function listenBanner(){
+  db.collection('settings').doc('banner').onSnapshot(doc => {
+    currentBannerData = doc.exists ? doc.data() : null;
+    const previewWrap = document.getElementById('bannerPreviewWrap');
+    const previewImg = document.getElementById('bannerPreviewImg');
+    if(currentBannerData && currentBannerData.imageUrl){
+      previewImg.src = currentBannerData.imageUrl;
+      previewWrap.style.display = 'block';
+      document.getElementById('fBannerLink').value = currentBannerData.link || '';
+      document.getElementById('fBannerEnabled').value = currentBannerData.enabled ? 'yes' : 'no';
+    } else {
+      previewWrap.style.display = 'none';
+    }
+  });
+}
+
+document.getElementById('bannerSaveBtn').addEventListener('click', async () => {
+  const link = document.getElementById('fBannerLink').value.trim();
+  const enabled = document.getElementById('fBannerEnabled').value === 'yes';
+  const okEl = document.getElementById('bannerStatusOk');
+  const errEl = document.getElementById('bannerStatusErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+
+  if(!bannerFile && !(currentBannerData && currentBannerData.imageUrl)){
+    errEl.textContent = 'Banner ပုံ တစ်ပုံ upload လုပ်ပါ';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const saveBtn = document.getElementById('bannerSaveBtn');
+  saveBtn.disabled = true; saveBtn.textContent = 'သိမ်းနေသည်...';
+  document.getElementById('bannerProgressWrap').classList.add('show');
+
+  try{
+    let imageResult = currentBannerData ? { url: currentBannerData.imageUrl, path: currentBannerData.imagePath } : null;
+    if(bannerFile){
+      const oldPath = currentBannerData ? currentBannerData.imagePath : null;
+      imageResult = await uploadFile(bannerFile, `banner/banner_${Date.now()}_${bannerFile.name}`, pct => {
+        document.getElementById('bannerProgressBar').style.width = pct + '%';
+        document.getElementById('bannerProgressLabel').textContent = `Upload: ${pct.toFixed(0)}%`;
+      });
+      if(oldPath) deleteFromBunny(oldPath).catch(()=>{});
+    }
+    await db.collection('settings').doc('banner').set({
+      imageUrl: imageResult.url, imagePath: imageResult.path,
+      link: link || null, enabled,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    okEl.classList.add('show');
+    setTimeout(() => okEl.classList.remove('show'), 3000);
+    bannerFile = null;
+    document.getElementById('bannerFileName').textContent = '';
+    document.getElementById('bannerProgressWrap').classList.remove('show');
+    document.getElementById('bannerProgressBar').style.width = '0%';
+    document.getElementById('bannerProgressLabel').textContent = '';
+  }catch(err){
+    errEl.textContent = 'Banner သိမ်း၍ မရပါ — ' + err.message;
+    errEl.classList.add('show');
+  }finally{
+    saveBtn.disabled = false; saveBtn.textContent = '💾 Banner သိမ်းမည်';
+  }
+});
+
+document.getElementById('bannerRemoveBtn').addEventListener('click', async () => {
+  if(!currentBannerData){ showToast('Banner မရှိသေးပါ'); return; }
+  if(!confirm('Banner ကို ဖျက်မှာ သေချာပါသလား?')) return;
+  try{
+    if(currentBannerData.imagePath) await deleteFromBunny(currentBannerData.imagePath).catch(()=>{});
+    await db.collection('settings').doc('banner').delete();
+    document.getElementById('fBannerLink').value = '';
+    document.getElementById('fBannerEnabled').value = 'yes';
+    showToast('Banner ဖျက်ပြီးပါပြီ', 'ok');
+  }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+});
 </script>
 </body>
 </html>
