@@ -249,6 +249,13 @@
     <button class="btn btn-primary" id="addBtn">➕ Upload &amp; ထည့်မည်</button>
   </div>
 
+  <div class="card-form">
+    <div class="dash-title" style="font-size:18px;margin-bottom:14px;">🎬 Video Player Test</div>
+    <div class="field"><label>Video URL (R2 public URL)</label><input type="text" id="testVideoUrl" placeholder="https://cdn.maxflixstream.com/videos/..."></div>
+    <button class="btn btn-ghost" id="testPlayBtn" style="margin-bottom:14px;">▶️ Play Video</button>
+    <video id="videoPlayer" controls style="width:100%;max-height:400px;background:#000;border-radius:6px;"></video>
+  </div>
+
   <div class="dash-title" style="font-size:22px;margin-bottom:14px;">ထည့်ထားသော ဇာတ်ကားများ</div>
   <div id="adminList"></div>
   <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
@@ -888,6 +895,32 @@ document.getElementById('bannerRemoveBtn').addEventListener('click', async () =>
     document.getElementById('fBannerEnabled').value = 'yes';
     showToast('Banner ဖျက်ပြီးပါပြီ', 'ok');
   }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+});
+
+/* ---------- Video Player Test (Vercel API — deployed at maxflix-admin.vercel.app) ---------- */
+async function playVideo(filename){
+  const btn = document.getElementById('testPlayBtn');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  try{
+    const res = await fetch(`https://maxflix-admin.vercel.app/api/get-download-url?filename=${encodeURIComponent(filename)}`);
+    if(!res.ok) throw new Error(`API error (${res.status})`);
+    const { url } = await res.json();
+    document.getElementById('videoPlayer').src = url;
+  }catch(err){
+    showToast('Video မဖွင့်နိုင်ပါ — ' + err.message);
+  }finally{
+    btn.disabled = false; btn.textContent = '▶️ Play Video';
+  }
+}
+document.getElementById('testPlayBtn').addEventListener('click', () => {
+  const val = document.getElementById('testVideoUrl').value.trim();
+  if(!val){ showToast('URL ဒါမှမဟုတ် filename ထည့်ပါ'); return; }
+  // သင့် URL ကို တိုက်ရိုက် paste လုပ်ရင် တန်းဖွင့်ပေးမယ်၊ filename ပဲ ထည့်ရင် Vercel API ကနေ signed URL ယူပေးမယ်
+  if(val.startsWith('http')){
+    document.getElementById('videoPlayer').src = val;
+  } else {
+    playVideo(val);
+  }
 });
 </script>
 </body>
