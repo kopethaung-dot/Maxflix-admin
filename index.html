@@ -203,7 +203,7 @@
     <div class="field">
       <label>Video File * (mp4 file ကို တိုက်ရိုက် upload)</label>
       <div class="drop-zone" id="videoDrop">
-        <input type="file" id="fVideoFile" accept="video/*">
+        <input type="file" id="fVideoFile">
         <span id="videoDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး video file ချပါ</span>
         <div class="file-name" id="videoFileName"></div>
       </div>
@@ -217,7 +217,7 @@
       <label>Mobile-friendly Video (optional — lower bitrate/size version)</label>
       <p class="helper" style="margin-bottom:8px;">ဒါကို ထည့်ရင် mobile screen (သို့) internet နှေးတဲ့ user တွေအတွက် ဒီဖိုင်ငယ်ကို အလိုအလျောက် ရွေးပေးပါမယ် — မထည့်ရင် main video ကိုပဲ everyone ကြည့်ရမှာပါ</p>
       <div class="drop-zone" id="videoMobileDrop">
-        <input type="file" id="fVideoMobileFile" accept="video/*">
+        <input type="file" id="fVideoMobileFile">
         <span id="videoMobileDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး mobile version ချပါ (optional)</span>
         <div class="file-name" id="videoMobileFileName"></div>
       </div>
@@ -428,7 +428,7 @@ auth.onAuthStateChanged(user => {
 });
 
 /* ---------- File pickers ---------- */
-function wireDrop(dropId, inputId, labelId, nameId, onFile){
+function wireDrop(dropId, inputId, labelId, nameId, onFile, mimePrefix){
   const drop = document.getElementById(dropId);
   const input = document.getElementById(inputId);
   drop.addEventListener('click', () => input.click());
@@ -440,12 +440,21 @@ function wireDrop(dropId, inputId, labelId, nameId, onFile){
   });
   input.addEventListener('change', () => { if(input.files[0]) handleFile(input.files[0]); });
   function handleFile(file){
+    // accept="video/*" ကို input ထဲမှာ ထားရင် Android/Chrome က file ရွေးတဲ့အခါ
+    // restricted "Photo Picker" UI ကို auto-launch လုပ်ပြီး folder အားလုံးကို browse
+    // မလုပ်နိုင်တော့ဘူး (Android OS-level behavior, browser ဘယ်ဟာမှန်း မထူးပါ) —
+    // ဒါကြောင့် accept attribute ကို HTML ထဲက ဖယ်ပြီး validation ကို ဒီနေရာမှာပဲ
+    // JS ထဲက manual check လုပ်တာပါ။
+    if(mimePrefix && file.type && !file.type.startsWith(mimePrefix)){
+      showToast(`${mimePrefix}* file မျိုးကိုပဲ ရွေးပါ — ရွေးထားတာက "${file.type || 'unknown type'}" ဖြစ်နေပါတယ်`);
+      return;
+    }
     onFile(file);
     document.getElementById(nameId).textContent = `✓ ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`;
   }
 }
-wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => videoFile = f);
-wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobileFileName', f => videoMobileFile = f);
+wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => videoFile = f, 'video/');
+wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobileFileName', f => videoMobileFile = f, 'video/');
 wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => thumbFile = f);
 wireDrop('bannerDrop','fBannerFile','bannerDropLabel','bannerFileName', f => bannerFile = f);
 
