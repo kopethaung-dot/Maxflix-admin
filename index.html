@@ -750,6 +750,18 @@ function listenPremiumRequests(){
 
 /* ---------- 18+ PIN ---------- */
 const ADULT_PIN_DURATION_DAYS = 5;
+const PREMIUM_PIN_GRACE_DAYS = 1; // premium users keep access this long after premium technically expires
+
+// Premium subscriber ဆိုရင် PIN expiry ကို premiumExpiresAt + grace ကို live-calculate လုပ်ပေးမယ်
+// (admin ပြန် sync လုပ်စရာမလို — premium renew ရင် auto extend ဖြစ်သွားမယ်)။
+// Free user ဆိုရင် admin ထုတ်ပေးထားတဲ့ fixed 5-ရက် window ကိုပဲ သုံးမယ်။
+function computeAdultAccessExpiryMs(u){
+  const premiumExpMs = u.premiumExpiresAt ? (u.premiumExpiresAt.toMillis ? u.premiumExpiresAt.toMillis() : u.premiumExpiresAt) : 0;
+  if(u.isPremium && premiumExpMs > Date.now()){
+    return premiumExpMs + PREMIUM_PIN_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  }
+  return u.adultPinExpiresAt ? (u.adultPinExpiresAt.toMillis ? u.adultPinExpiresAt.toMillis() : u.adultPinExpiresAt) : 0;
+}
 
 function generateRandomPin(){
   return String(Math.floor(100000 + Math.random() * 900000)); // 6-digit random
@@ -765,12 +777,14 @@ document.getElementById('genPinBtn').addEventListener('click', async () => {
     const snap = await db.collection('users').where('email', '==', email).limit(1).get();
     if(snap.empty){ errEl.textContent = 'ဒီ email နဲ့ account ရှာမတွေ့ပါ — customer အရင် site ထဲ login/signup ဝင်ဖို့ လိုပါတယ်'; errEl.style.display = 'block'; return; }
     const uid = snap.docs[0].id;
+    const u = snap.docs[0].data();
     const pin = generateRandomPin();
     const expiresAt = firebase.firestore.Timestamp.fromDate(
       new Date(Date.now() + ADULT_PIN_DURATION_DAYS * 24 * 60 * 60 * 1000)
     );
     await db.collection('users').doc(uid).set({ adultPin: pin, adultPinExpiresAt: expiresAt }, { merge: true });
-    okEl.textContent = `PIN: ${pin}  —  ${email} အတွက် ${ADULT_PIN_DURATION_DAYS} ရက် သက်တမ်းရှိပါမယ် — customer ကို ဒီ PIN ကို ပို့ပေးပါ`;
+    const premiumNote = u.isPremium ? ' — Premium subscriber ဖြစ်လို့ premium သက်တမ်းနဲ့အတူ auto-sync ဖြစ်ပါမယ်' : ` — ${ADULT_PIN_DURATION_DAYS} ရက် အတွင်း အလုပ်လုပ်ပါမယ်`;
+    okEl.textContent = `PIN: ${pin}  —  ${email} အတွက်${premiumNote} — customer ကို ဒီ PIN ကို ပို့ပေးပါ`;
     okEl.style.display = 'block';
     document.getElementById('fPinEmail').value = '';
   }catch(err){ errEl.textContent = 'PIN Generate မလုပ်နိုင်ပါ — ' + err.message; errEl.style.display = 'block'; }
@@ -784,12 +798,14 @@ function listenAdultPins(){
     const now = Date.now();
     list.innerHTML = snap.docs.map(d => {
       const u = d.data();
-      const expiresMs = u.adultPinExpiresAt ? (u.adultPinExpiresAt.toMillis ? u.adultPinExpiresAt.toMillis() : u.adultPinExpiresAt) : 0;
+      const expiresMs = computeAdultAccessExpiryMs(u);
       const expired = now > expiresMs;
       const expiresStr = expiresMs ? new Date(expiresMs).toLocaleString('en-GB') : '—';
+      const syncedBadge = (u.isPremium && u.premiumExpiresAt && (u.premiumExpiresAt.toMillis ? u.premiumExpiresAt.toMillis() : u.premiumExpiresAt) > now)
+        ? ' <span style="color:var(--gold);">★ Premium-synced</span>' : '';
       return `<div class="req-item">
         <div class="req-info">
-          <div class="t">${esc(u.email || d.id)}</div>
+          <div class="t">${esc(u.email || d.id)}${syncedBadge}</div>
           <div class="m">PIN: <b>${esc(u.adultPin)}</b> · <span class="req-status ${expired ? 'rejected' : 'approved'}">${expired ? 'သက်တမ်းကုန်' : 'အသုံးပြုနိုင်'}</span></div>
           <div class="txn">သက်တမ်းကုန်ရက်: ${expiresStr}</div>
         </div>
