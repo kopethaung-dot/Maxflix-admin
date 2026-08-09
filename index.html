@@ -187,7 +187,7 @@
       <div class="field"><label>ဇာတ်ကား/Episode အမည် *</label><input type="text" id="fTitle"></div>
       <div class="field"><label>အမျိုးအစား *</label>
         <select id="fCategory">
-          <option value="original">Own</option>
+          <option value="original">Movies</option>
           <option value="drama">Short Drama</option>
           <option value="adult">18+</option>
         </select>
@@ -224,10 +224,11 @@
     </div>
 
     <div class="field">
-      <label>Thumbnail File (poster ပုံ — optional)</label>
+      <label>Thumbnail File (poster ပုံ — optional, video ကနေ auto-generate ဖြစ်ပါမယ်)</label>
+      <p class="helper" id="thumbAutoHint" style="margin-bottom:8px;"></p>
       <div class="drop-zone" id="thumbDrop">
         <input type="file" id="fThumbFile" accept="image/*">
-        <span id="thumbDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး ပုံချပါ</span>
+        <span id="thumbDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး ပုံချပါ (auto-generate ကို override လုပ်ချင်ရင်ပဲ)</span>
         <div class="file-name" id="thumbFileName"></div>
       </div>
     </div>
@@ -346,7 +347,7 @@ const PULL_ZONE_URL = "https://cdn.maxflixstream.com"; // for reference only —
 const PLACEHOLDER_THUMB = "data:image/svg+xml;utf8," + encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='78'><rect width='52' height='78' fill='%23222'/></svg>`);
 function esc(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-const CATEGORY_LABEL = { original: 'Own', drama: 'Short Drama', adult: '18+' };
+const CATEGORY_LABEL = { original: 'Movies', drama: 'Short Drama', adult: '18+' };
 const PREMIUM_DURATION_DAYS = 30; // Approve လုပ်ရင် ဒီရက်ပေါင်းအတိုင်း premium ရမယ် — ချင်ရင် ဒီကို ပြောင်းလို့ရ
 
 /* =========================================================
@@ -453,10 +454,59 @@ function wireDrop(dropId, inputId, labelId, nameId, onFile, mimePrefix){
     document.getElementById(nameId).textContent = `✓ ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`;
   }
 }
-wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => videoFile = f, 'video/');
+wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => { videoFile = f; maybeAutoGenerateThumbnail(f); }, 'video/');
 wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobileFileName', f => videoMobileFile = f, 'video/');
-wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => thumbFile = f);
+wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => { thumbFile = f; thumbFileIsAuto = false; });
 wireDrop('bannerDrop','fBannerFile','bannerDropLabel','bannerFileName', f => bannerFile = f);
+
+/* ---------- Auto-thumbnail: capture the video's first frame as a poster image ---------- */
+let thumbFileIsAuto = false; // user ကိုယ်တိုင် thumbnail ရွေးထားရင် auto-generate က override မလုပ်ဘူး
+
+function captureVideoFrame(file, seekToSeconds){
+  return new Promise((resolve, reject) => {
+    const videoEl = document.createElement('video');
+    videoEl.preload = 'metadata';
+    videoEl.muted = true;
+    videoEl.playsInline = true;
+    const objUrl = URL.createObjectURL(file);
+    videoEl.src = objUrl;
+    const cleanup = () => URL.revokeObjectURL(objUrl);
+    videoEl.addEventListener('loadeddata', () => {
+      videoEl.currentTime = Math.min(seekToSeconds, Math.max((videoEl.duration || seekToSeconds) - 0.1, 0));
+    });
+    videoEl.addEventListener('seeked', () => {
+      try{
+        const canvas = document.createElement('canvas');
+        canvas.width = videoEl.videoWidth;
+        canvas.height = videoEl.videoHeight;
+        canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          cleanup();
+          if(blob) resolve(new File([blob], 'auto-thumb.jpg', { type: 'image/jpeg' }));
+          else reject(new Error('Canvas ကနေ image blob မထုတ်နိုင်ပါ'));
+        }, 'image/jpeg', 0.85);
+      }catch(err){ cleanup(); reject(err); }
+    });
+    videoEl.addEventListener('error', () => { cleanup(); reject(new Error('Video frame ကို ဖတ်၍မရပါ')); });
+  });
+}
+
+async function maybeAutoGenerateThumbnail(videoFileArg){
+  // User က thumbnail ကို manual ရွေးထားပြီးသားဆိုရင် override မလုပ်ဘူး
+  if(thumbFile && !thumbFileIsAuto) return;
+  const hint = document.getElementById('thumbAutoHint');
+  hint.textContent = 'Video ရဲ့ ပထမပိုင်း frame ကနေ thumbnail ကို auto-generate လုပ်နေပါတယ်...';
+  try{
+    const thumb = await captureVideoFrame(videoFileArg, 1);
+    thumbFile = thumb;
+    thumbFileIsAuto = true;
+    document.getElementById('thumbFileName').textContent = `✓ auto-thumb.jpg (video ရဲ့ 0:01 frame ကနေ auto-generate)`;
+    hint.textContent = '';
+    // Preview အနေနဲ့ label မှာ ပြထားပေမယ့် thumbDrop file input ကို မထိပါ — user က thumbnail file ကို manual ရွေးရင်တော့ ဒီ auto version ကို override လုပ်ပေးမယ်
+  }catch(err){
+    hint.textContent = `Auto-thumbnail generate မရပါ — Thumbnail ကို manual ရွေးပေးပါ (${err.message})`;
+  }
+}
 
 /* ---------- Upload/Delete helper (via Cloudflare Worker → R2, streamed through the Worker) ---------- */
 async function uploadFile(file, path, onProgress){
@@ -609,7 +659,7 @@ function resetContentForm(){
   document.getElementById('videoProgressBar').style.width = '0%';
   document.getElementById('videoProgressLabel').textContent = '';
   document.getElementById('fVideoManualUrl').value = '';
-  videoFile = null; thumbFile = null; videoMobileFile = null;
+  videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false;
 }
 
 /* ---------- Edit mode ---------- */
@@ -625,7 +675,7 @@ function enterEditMode(id, m){
   document.getElementById('fFeatured').value = m.featured ? 'yes' : 'no';
   document.getElementById('fPremium').value = m.isPremium ? 'yes' : 'no';
   document.getElementById('fDesc').value = m.desc || '';
-  videoFile = null; thumbFile = null; videoMobileFile = null;
+  videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false;
   document.getElementById('videoFileName').textContent = m.videoUrl ? '✓ လက်ရှိ video ကို ဆက်သုံးမည် (မပြောင်းလိုလျှင် ဒီနေရာကို ချန်ထားပါ)' : '';
   document.getElementById('videoMobileFileName').textContent = m.videoUrlMobile ? '✓ လက်ရှိ mobile video ကို ဆက်သုံးမည်' : '';
   document.getElementById('thumbFileName').textContent = m.thumbUrl ? '✓ လက်ရှိ thumbnail ကို ဆက်သုံးမည်' : '';
