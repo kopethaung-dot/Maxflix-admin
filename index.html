@@ -234,7 +234,7 @@
     </div>
 
     <div class="grid-2">
-      <div class="field"><label>ကြာချိန်</label><input type="text" id="fDuration" placeholder="ဥပမာ - 3 မိနစ်"></div>
+      <div class="field"><label>ကြာချိန် (video ကနေ auto-detect ဖြစ်ပါမယ် — ပြင်ချင်ရင်ပဲ manual ရိုက်ပါ)</label><input type="text" id="fDuration" placeholder="ဥပမာ - 3:45"></div>
       <div class="field"><label>Featured (hero တွင်ပြမည်)</label>
         <select id="fFeatured"><option value="no">မပြရန်</option><option value="yes">Hero တွင်ပြရန်</option></select>
       </div>
@@ -454,13 +454,53 @@ function wireDrop(dropId, inputId, labelId, nameId, onFile, mimePrefix){
     document.getElementById(nameId).textContent = `✓ ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`;
   }
 }
-wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => { videoFile = f; maybeAutoGenerateThumbnail(f); }, 'video/');
+wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => { videoFile = f; maybeAutoGenerateThumbnail(f); maybeAutoFillDuration(f); }, 'video/');
 wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobileFileName', f => videoMobileFile = f, 'video/');
 wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => { thumbFile = f; thumbFileIsAuto = false; });
 wireDrop('bannerDrop','fBannerFile','bannerDropLabel','bannerFileName', f => bannerFile = f);
 
-/* ---------- Auto-thumbnail: capture the video's first frame as a poster image ---------- */
+/* ---------- Auto-thumbnail + auto-duration + auto-aspect-ratio from the video file itself ---------- */
 let thumbFileIsAuto = false; // user ကိုယ်တိုင် thumbnail ရွေးထားရင် auto-generate က override မလုပ်ဘူး
+let detectedAspectRatio = null; // "W/H" string, ဥပမာ "9/16" — public site card grid မှာ သုံးမယ်
+let durationFieldIsAuto = false; // user က duration ကို manual ပြင်ရင် auto-fill က override မလုပ်ဘူး
+
+// Video ကို load လုပ်ပြီး duration + dimensions ကို ဖတ်တယ် (frame capture မလိုအပ်သေးဘူး)
+function readVideoMetadata(file){
+  return new Promise((resolve, reject) => {
+    const videoEl = document.createElement('video');
+    videoEl.preload = 'metadata';
+    videoEl.muted = true;
+    const objUrl = URL.createObjectURL(file);
+    videoEl.src = objUrl;
+    videoEl.addEventListener('loadedmetadata', () => {
+      const result = { durationSeconds: videoEl.duration, width: videoEl.videoWidth, height: videoEl.videoHeight };
+      URL.revokeObjectURL(objUrl);
+      resolve(result);
+    });
+    videoEl.addEventListener('error', () => { URL.revokeObjectURL(objUrl); reject(new Error('Video metadata ကို ဖတ်၍မရပါ')); });
+  });
+}
+
+function formatDuration(totalSeconds){
+  const s = Math.round(totalSeconds);
+  const h = Math.floor(s / 3600), m2 = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0
+    ? `${h}:${String(m2).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+    : `${m2}:${String(sec).padStart(2,'0')}`;
+}
+
+async function maybeAutoFillDuration(videoFileArg){
+  const durInput = document.getElementById('fDuration');
+  // User က duration ကို manual ပြင်ထားပြီးသားဆိုရင် (auto-fill ကနေ မလာဘူးဆိုရင်) override မလုပ်ဘူး
+  if(durInput.value.trim() && !durationFieldIsAuto) return;
+  try{
+    const meta = await readVideoMetadata(videoFileArg);
+    durInput.value = formatDuration(meta.durationSeconds);
+    durationFieldIsAuto = true;
+    if(meta.width && meta.height) detectedAspectRatio = `${meta.width}/${meta.height}`;
+  }catch(err){ /* auto-fill fail ဖြစ်ရင် user ကိုယ်တိုင် manual ထည့်ပေးရပါမယ် — error ကို toast နဲ့ မနှောင့်ယှက်ပါ */ }
+}
+document.getElementById('fDuration').addEventListener('input', () => { durationFieldIsAuto = false; });
 
 function captureVideoFrame(file, seekToSeconds){
   return new Promise((resolve, reject) => {
@@ -624,7 +664,11 @@ document.getElementById('addBtn').addEventListener('click', async () => {
       videoUrl: videoResult ? videoResult.url : null, videoPath: videoResult ? videoResult.path : null,
       videoUrlMobile: videoMobileResult ? (videoMobileResult.url || null) : null,
       videoPathMobile: videoMobileResult ? (videoMobileResult.path || null) : null,
-      thumbUrl: thumbResult ? thumbResult.url : null, thumbPath: thumbResult ? thumbResult.path : null
+      thumbUrl: thumbResult ? thumbResult.url : null, thumbPath: thumbResult ? thumbResult.path : null,
+      // Video ရဲ့ actual dimensions ကနေ auto-detect လုပ်ထားတဲ့ aspect ratio — public site card
+      // grid မှာ 9:16/16:9/1:1 ဘယ်ဟာဖြစ်ဖြစ် အလိုအလျောက် ကိုက်ညီအောင် ပြပေးဖို့ သုံးမယ်။
+      // Video အသစ် မတင်ဘဲ edit လုပ်ရင် ရှေ့က detect ထားတဲ့ value ကို ဆက်ထားမယ်။
+      thumbAspectRatio: detectedAspectRatio || (editingId ? (editingMovieData.thumbAspectRatio || null) : null)
     };
     if(editingId){
       await db.collection('movies').doc(id).update(payload);
@@ -659,7 +703,7 @@ function resetContentForm(){
   document.getElementById('videoProgressBar').style.width = '0%';
   document.getElementById('videoProgressLabel').textContent = '';
   document.getElementById('fVideoManualUrl').value = '';
-  videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false;
+  videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false; detectedAspectRatio = null; durationFieldIsAuto = false;
 }
 
 /* ---------- Edit mode ---------- */
@@ -675,7 +719,7 @@ function enterEditMode(id, m){
   document.getElementById('fFeatured').value = m.featured ? 'yes' : 'no';
   document.getElementById('fPremium').value = m.isPremium ? 'yes' : 'no';
   document.getElementById('fDesc').value = m.desc || '';
-  videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false;
+  videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false; detectedAspectRatio = null; durationFieldIsAuto = false;
   document.getElementById('videoFileName').textContent = m.videoUrl ? '✓ လက်ရှိ video ကို ဆက်သုံးမည် (မပြောင်းလိုလျှင် ဒီနေရာကို ချန်ထားပါ)' : '';
   document.getElementById('videoMobileFileName').textContent = m.videoUrlMobile ? '✓ လက်ရှိ mobile video ကို ဆက်သုံးမည်' : '';
   document.getElementById('thumbFileName').textContent = m.thumbUrl ? '✓ လက်ရှိ thumbnail ကို ဆက်သုံးမည်' : '';
