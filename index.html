@@ -253,6 +253,15 @@
   </div>
 
   <div class="dash-title" style="font-size:22px;margin-bottom:14px;">ထည့်ထားသော ဇာတ်ကားများ</div>
+  <div class="field" style="max-width:260px;margin-bottom:14px;">
+    <label>Category အလိုက် စစ်ထုတ်ကြည့်ရန်</label>
+    <select id="adminCategoryFilter">
+      <option value="all">အားလုံး</option>
+      <option value="original">Movies</option>
+      <option value="drama">Short Drama</option>
+      <option value="adult">18+</option>
+    </select>
+  </div>
   <div id="adminList"></div>
   <div class="load-more-wrap" id="loadMoreWrap" style="display:none;">
     <button class="btn btn-ghost" id="loadMoreBtn">နောက်ထပ်ကြည့်ရန်</button>
@@ -746,54 +755,67 @@ const ADMIN_PAGE_SIZE = 40;
 let adminMoviesLimit = ADMIN_PAGE_SIZE;
 let adminMoviesUnsub = null;
 let adminMoviesCache = {}; // id -> data, so Edit can look up full doc without another read
+let adminMoviesRawDocs = []; // { id, m } — Firestore snapshot ကနေ ရလာတဲ့ raw list, filter ပြောင်းတိုင်း ပြန် fetch မလိုအောင်
 
 function listenMovies(){
   if(adminMoviesUnsub) adminMoviesUnsub();
   adminMoviesUnsub = db.collection('movies').orderBy('createdAt','desc').limit(adminMoviesLimit).onSnapshot(snap => {
-    const list = document.getElementById('adminList');
     document.getElementById('loadMoreWrap').style.display = snap.docs.length === adminMoviesLimit ? 'flex' : 'none';
-    if(snap.empty){ list.innerHTML = `<div class="empty">ဇာတ်ကား မထည့်ရသေးပါ</div>`; return; }
     adminMoviesCache = {};
-    list.innerHTML = snap.docs.map(d => {
-      const m = d.data();
-      adminMoviesCache[d.id] = m;
-      const seriesTag = m.category === 'drama' && m.seriesName ? ` · ${esc(m.seriesName)}${m.episodeNumber ? ' Ep '+m.episodeNumber : ''}` : '';
-      return `<div class="list-item">
-        <img class="list-thumb" loading="lazy" src="${m.thumbUrl ? esc(m.thumbUrl) : PLACEHOLDER_THUMB}" onerror="this.src='${PLACEHOLDER_THUMB}'">
-        <div class="list-info">
-          <div class="t">${esc(m.title)}${m.featured ? ' ⭐' : ''}${m.isPremium ? ' <span style="color:var(--gold);">★ Premium</span>' : ''}</div>
-          <div class="m">${CATEGORY_LABEL[m.category] || ''}${seriesTag} ${m.duration ? '• '+esc(m.duration) : ''}</div>
-        </div>
-        <div class="list-actions">
-          <button class="edit-btn" data-id="${d.id}">ပြင်မည်</button>
-          <button class="del-btn" data-id="${d.id}" data-video="${esc(m.videoPath||'')}" data-videomobile="${esc(m.videoPathMobile||'')}" data-thumb="${esc(m.thumbPath||'')}">ဖျက်မည်</button>
-        </div>
-      </div>`;
-    }).join('');
-
-    list.querySelectorAll('.edit-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.dataset.id;
-        const m = adminMoviesCache[id];
-        if(m) enterEditMode(id, m);
-      });
+    adminMoviesRawDocs = snap.docs.map(d => {
+      adminMoviesCache[d.id] = d.data();
+      return { id: d.id, m: d.data() };
     });
-    list.querySelectorAll('.del-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if(!confirm('ဖျက်မှာ သေချာပါသလား?')) return;
-        const { id, video, videomobile, thumb } = btn.dataset;
-        try{
-          if(video) await deleteFromBunny(video).catch(()=>{});
-          if(videomobile) await deleteFromBunny(videomobile).catch(()=>{});
-          if(thumb) await deleteFromBunny(thumb).catch(()=>{});
-          await db.collection('movies').doc(id).delete();
-          if(editingId === id){ resetContentForm(); exitEditMode(); }
-          showToast('ဇာတ်ကား ဖျက်ပြီးပါပြီ', 'ok');
-        }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
-      });
+    renderAdminMoviesList();
+  });
+}
+
+function renderAdminMoviesList(){
+  const list = document.getElementById('adminList');
+  const filterVal = document.getElementById('adminCategoryFilter').value;
+  const filtered = filterVal === 'all' ? adminMoviesRawDocs : adminMoviesRawDocs.filter(x => x.m.category === filterVal);
+
+  if(!adminMoviesRawDocs.length){ list.innerHTML = `<div class="empty">ဇာတ်ကား မထည့်ရသေးပါ</div>`; return; }
+  if(!filtered.length){ list.innerHTML = `<div class="empty">${esc(CATEGORY_LABEL[filterVal] || 'ဒီ category')} အောက်မှာ ဇာတ်ကား မရှိသေးပါ</div>`; return; }
+
+  list.innerHTML = filtered.map(({ id, m }) => {
+    const seriesTag = m.category === 'drama' && m.seriesName ? ` · ${esc(m.seriesName)}${m.episodeNumber ? ' Ep '+m.episodeNumber : ''}` : '';
+    return `<div class="list-item">
+      <img class="list-thumb" loading="lazy" src="${m.thumbUrl ? esc(m.thumbUrl) : PLACEHOLDER_THUMB}" onerror="this.src='${PLACEHOLDER_THUMB}'">
+      <div class="list-info">
+        <div class="t">${esc(m.title)}${m.featured ? ' ⭐' : ''}${m.isPremium ? ' <span style="color:var(--gold);">★ Premium</span>' : ''}</div>
+        <div class="m">${CATEGORY_LABEL[m.category] || ''}${seriesTag} ${m.duration ? '• '+esc(m.duration) : ''}</div>
+      </div>
+      <div class="list-actions">
+        <button class="edit-btn" data-id="${id}">ပြင်မည်</button>
+        <button class="del-btn" data-id="${id}" data-video="${esc(m.videoPath||'')}" data-videomobile="${esc(m.videoPathMobile||'')}" data-thumb="${esc(m.thumbPath||'')}">ဖျက်မည်</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      const m = adminMoviesCache[id];
+      if(m) enterEditMode(id, m);
+    });
+  });
+  list.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if(!confirm('ဖျက်မှာ သေချာပါသလား?')) return;
+      const { id, video, videomobile, thumb } = btn.dataset;
+      try{
+        if(video) await deleteFromBunny(video).catch(()=>{});
+        if(videomobile) await deleteFromBunny(videomobile).catch(()=>{});
+        if(thumb) await deleteFromBunny(thumb).catch(()=>{});
+        await db.collection('movies').doc(id).delete();
+        if(editingId === id){ resetContentForm(); exitEditMode(); }
+        showToast('ဇာတ်ကား ဖျက်ပြီးပါပြီ', 'ok');
+      }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
     });
   });
 }
+document.getElementById('adminCategoryFilter').addEventListener('change', renderAdminMoviesList);
 document.getElementById('loadMoreBtn').addEventListener('click', () => {
   adminMoviesLimit += ADMIN_PAGE_SIZE;
   listenMovies();
