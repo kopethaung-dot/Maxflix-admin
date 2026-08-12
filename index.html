@@ -247,6 +247,10 @@
       <div></div>
     </div>
 
+    <div class="field"><label>Genre (တစ်ခုထက်ပို ရွေးလို့ရ)</label>
+      <div id="genreCheckboxes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+    </div>
+
     <div class="field"><label>အကျဉ်းချုပ်</label><textarea id="fDesc" rows="3"></textarea></div>
 
     <button class="btn btn-primary" id="addBtn">➕ Upload &amp; ထည့်မည်</button>
@@ -357,6 +361,12 @@ const PLACEHOLDER_THUMB = "data:image/svg+xml;utf8," + encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='78'><rect width='52' height='78' fill='%23222'/></svg>`);
 function esc(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const CATEGORY_LABEL = { original: 'Movies', drama: 'Short Drama', adult: '18+' };
+const GENRE_LIST = ['Action','Romance','Comedy','Thriller','Fantasy','Horror','Drama','Crime','Family'];
+document.getElementById('genreCheckboxes').innerHTML = GENRE_LIST.map(g =>
+  `<label style="display:flex;align-items:center;gap:5px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">
+    <input type="checkbox" class="genre-cb" value="${g}"> ${g}
+  </label>`
+).join('');
 const PREMIUM_DURATION_DAYS = 30; // Approve လုပ်ရင် ဒီရက်ပေါင်းအတိုင်း premium ရမယ် — ချင်ရင် ဒီကို ပြောင်းလို့ရ
 
 /* =========================================================
@@ -666,8 +676,9 @@ document.getElementById('addBtn').addEventListener('click', async () => {
       if(oldThumbPath) deleteFromBunny(oldThumbPath).catch(()=>{});
     }
 
+    const genres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
     const payload = {
-      title, category, duration, featured, desc, isPremium,
+      title, category, duration, featured, desc, isPremium, genres,
       seriesName: category === 'drama' ? seriesName : null,
       episodeNumber: category === 'drama' ? episodeNumber : null,
       videoUrl: videoResult ? videoResult.url : null, videoPath: videoResult ? videoResult.path : null,
@@ -712,6 +723,7 @@ function resetContentForm(){
   document.getElementById('videoProgressBar').style.width = '0%';
   document.getElementById('videoProgressLabel').textContent = '';
   document.getElementById('fVideoManualUrl').value = '';
+  document.querySelectorAll('.genre-cb').forEach(cb => cb.checked = false);
   videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false; detectedAspectRatio = null; durationFieldIsAuto = false;
 }
 
@@ -728,6 +740,7 @@ function enterEditMode(id, m){
   document.getElementById('fFeatured').value = m.featured ? 'yes' : 'no';
   document.getElementById('fPremium').value = m.isPremium ? 'yes' : 'no';
   document.getElementById('fDesc').value = m.desc || '';
+  document.querySelectorAll('.genre-cb').forEach(cb => cb.checked = (m.genres || []).includes(cb.value));
   videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false; detectedAspectRatio = null; durationFieldIsAuto = false;
   document.getElementById('videoFileName').textContent = m.videoUrl ? '✓ လက်ရှိ video ကို ဆက်သုံးမည် (မပြောင်းလိုလျှင် ဒီနေရာကို ချန်ထားပါ)' : '';
   document.getElementById('videoMobileFileName').textContent = m.videoUrlMobile ? '✓ လက်ရှိ mobile video ကို ဆက်သုံးမည်' : '';
