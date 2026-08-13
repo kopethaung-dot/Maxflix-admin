@@ -13,9 +13,9 @@
 
 <style>
   :root{
-    --bg:#0a0a0d; --bg-elev:#131318; --bg-card:#1a1a21;
-    --ink:#f2f0ea; --ink-dim:#a8a6ac; --ink-faint:#6b6970;
-    --accent:#e0263f; --accent-dim:#8f1a2a; --gold:#d4a62a; --line:rgba(255,255,255,.08);
+    --bg:#1c1516; --bg-elev:#241a1c; --bg-card:#2e2124;
+    --ink:#f3ece6; --ink-dim:#b0a09e; --ink-faint:#8a7478;
+    --accent:#a8283f; --accent-dim:#6b1a29; --gold:#d4a62a; --line:rgba(243,236,230,.08);
     --font-display:'Bebas Neue','Noto Sans Myanmar',sans-serif;
     --font-body:'Work Sans','Noto Sans Myanmar',sans-serif;
   }
@@ -51,7 +51,7 @@
   .status{font-size:12px;padding:9px 12px;border-radius:4px;margin-bottom:14px;display:none;}
   .status.show{display:block;}
   .status-ok{background:rgba(46,160,67,.15);color:#4fd371;}
-  .status-err{background:rgba(224,38,63,.15);color:var(--accent);}
+  .status-err{background:rgba(168,40,63,.15);color:var(--accent);}
   .progress-wrap{background:var(--bg-card);border-radius:20px;height:8px;overflow:hidden;margin-top:8px;display:none;}
   .progress-wrap.show{display:block;}
   .progress-bar{height:100%;background:var(--accent);width:0%;transition:width .2s;}
@@ -88,11 +88,11 @@
   .approve-btn{font-size:12px;color:#4fd371;border:1px solid #2e8843;padding:8px 16px;border-radius:4px;background:none;}
   .approve-btn:hover{background:rgba(46,160,67,.15);}
   .reject-btn{font-size:12px;color:var(--accent);border:1px solid var(--accent-dim);padding:8px 16px;border-radius:4px;background:none;}
-  .reject-btn:hover{background:rgba(224,38,63,.15);}
+  .reject-btn:hover{background:rgba(168,40,63,.15);}
   .req-status{font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600;}
   .req-status.pending{background:rgba(212,166,42,.15);color:var(--gold);}
   .req-status.approved{background:rgba(46,160,67,.15);color:#4fd371;}
-  .req-status.rejected{background:rgba(224,38,63,.15);color:var(--accent);}
+  .req-status.rejected{background:rgba(168,40,63,.15);color:var(--accent);}
 
   /* ---------- Mobile refinements ---------- */
   @media (max-width:640px){
@@ -139,8 +139,8 @@
   <svg class="login-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="mfGradLogin" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#f0324a"/>
-        <stop offset="100%" stop-color="#8f1a2a"/>
+        <stop offset="0%" stop-color="#a8283f"/>
+        <stop offset="100%" stop-color="#6b1a29"/>
       </linearGradient>
     </defs>
     <rect x="1" y="1" width="38" height="38" rx="10" fill="url(#mfGradLogin)"/>
@@ -171,6 +171,7 @@
     <button class="dash-tab" id="tabPremium">Premium Requests <span id="pendingBadge"></span></button>
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
+    <button class="dash-tab" id="tabVideoAds">Video Ads</button>
   </div>
 
   <div class="panel open" id="panelContent">
@@ -329,6 +330,46 @@
       <div class="status status-err" id="bannerStatusErr" style="margin-top:14px;"></div>
     </div>
   </div>
+
+  <div class="panel" id="panelVideoAds">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Video Ads</div>
+    <p class="helper" style="margin-bottom:18px;">Short ads video များ — "Top Banner" ကို ရွေးရင် Home page Hero အောက်မှာ auto-play loop ဖြစ်ပြီးပြမယ်၊ "Bottom Popup" ကို ရွေးရင် screen အောက်ခြေမှာ sticky bar အနေနဲ့ ပြမယ် (X နှိပ်ပိတ်လို့ရ)။ Ad list ထဲ တစ်ခုထက်ပို ထည့်ထားရင် user visit တိုင်း random ရွေးပြီးပြပါမယ် — click လုပ်ရင် Link ဆီ တန်းရောက်သွားပါမယ်</p>
+
+    <div class="card-form">
+      <div class="field">
+        <label>Ad Video File * (mp4 file — အရွယ်ငယ်ငယ်၊ short clip ဖြစ်ရင် အကောင်းဆုံး)</label>
+        <div class="drop-zone" id="adVideoDrop">
+          <input type="file" id="fAdVideoFile">
+          <span id="adVideoDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး video file ချပါ</span>
+          <div class="file-name" id="adVideoFileName"></div>
+        </div>
+        <div class="progress-wrap" id="adVideoProgressWrap"><div class="progress-bar" id="adVideoProgressBar"></div></div>
+        <div class="progress-label" id="adVideoProgressLabel"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field"><label>Link URL * (click/tap လုပ်ရင် ဒီ link ကို သွားပါမယ် — ဥပမာ Telegram channel link)</label>
+          <input type="text" id="fAdLink" placeholder="https://t.me/..."></div>
+        <div class="field"><label>ဘယ်နေရာမှာ ပြမလဲ</label>
+          <select id="fAdPlacement">
+            <option value="top">Top Banner (Home page ထိပ်)</option>
+            <option value="bottom">Bottom Popup (Sticky bar)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field"><label>Ad ပြမလား</label>
+        <select id="fAdEnabled"><option value="yes">ပြရန် (Enabled)</option><option value="no">မပြရန် (Disabled)</option></select>
+      </div>
+
+      <button class="btn btn-primary" id="adAddBtn">➕ Ad ထည့်မည်</button>
+      <div class="status status-ok" id="adStatusOk" style="margin-top:14px;">✓ Ad သိမ်းဆည်းပြီးပါပြီ</div>
+      <div class="status status-err" id="adStatusErr" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="dash-title" style="font-size:18px;margin-bottom:14px;">ထည့်ထားသော Ads များ</div>
+    <div id="adList"></div>
+  </div>
 </div>
 
 <div id="toastWrap" class="toast-wrap"></div>
@@ -392,15 +433,18 @@ document.getElementById('tabContent').addEventListener('click', () => switchDash
 document.getElementById('tabPremium').addEventListener('click', () => switchDashTab('premium'));
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
+document.getElementById('tabVideoAds').addEventListener('click', () => switchDashTab('videoads'));
 function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
+  document.getElementById('tabVideoAds').classList.toggle('active', tab==='videoads');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
   document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
+  document.getElementById('panelVideoAds').classList.toggle('open', tab==='videoads');
 }
 
 /* ---------- Toggle Series/Episode fields for Short Drama ---------- */
@@ -434,6 +478,7 @@ auth.onAuthStateChanged(user => {
     listenPremiumRequests();
     listenAdultPins();
     listenBanner();
+    listenVideoAds();
   } else {
     document.getElementById('loginWrap').style.display = 'block';
     document.getElementById('dash').style.display = 'none';
@@ -477,6 +522,7 @@ wireDrop('videoDrop','fVideoFile','videoDropLabel','videoFileName', f => { video
 wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobileFileName', f => videoMobileFile = f, 'video/');
 wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => { thumbFile = f; thumbFileIsAuto = false; });
 wireDrop('bannerDrop','fBannerFile','bannerDropLabel','bannerFileName', f => bannerFile = f);
+wireDrop('adVideoDrop','fAdVideoFile','adVideoDropLabel','adVideoFileName', f => adVideoFile = f, 'video/');
 
 /* ---------- Auto-thumbnail + auto-duration + auto-aspect-ratio from the video file itself ---------- */
 let thumbFileIsAuto = false; // user ကိုယ်တိုင် thumbnail ရွေးထားရင် auto-generate က override မလုပ်ဘူး
@@ -1044,6 +1090,113 @@ document.getElementById('bannerRemoveBtn').addEventListener('click', async () =>
     document.getElementById('fBannerEnabled').value = 'yes';
     showToast('Banner ဖျက်ပြီးပါပြီ', 'ok');
   }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+});
+
+/* ---------- Video Ads (short ads video — top banner / bottom popup) ---------- */
+let adVideoFile = null;
+let currentAds = []; // cached list from Firestore, used to render + delete
+
+function listenVideoAds(){
+  db.collection('videoAds').orderBy('createdAt', 'desc').onSnapshot(snap => {
+    currentAds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAdList();
+  }, err => {
+    document.getElementById('adList').innerHTML = `<div class="empty">List ကို load လုပ်၍ မရပါ — ${esc(err.message)}</div>`;
+  });
+}
+
+function renderAdList(){
+  const wrap = document.getElementById('adList');
+  if(!currentAds.length){
+    wrap.innerHTML = '<div class="empty">Ad video မထည့်ရသေးပါ</div>';
+    return;
+  }
+  const placementLabel = p => p === 'bottom' ? 'Bottom Popup' : 'Top Banner';
+  wrap.innerHTML = currentAds.map(ad => `
+    <div class="list-item">
+      <video src="${esc(ad.videoUrl)}" class="list-thumb" style="height:52px;object-fit:cover;" muted playsinline></video>
+      <div class="list-info">
+        <div class="t">${placementLabel(ad.placement)} ${ad.enabled ? '' : '<span style="color:var(--ink-faint);">(Disabled)</span>'}</div>
+        <div class="m">${esc(ad.link || 'link မထည့်ရသေးပါ')}</div>
+      </div>
+      <div class="list-actions">
+        <button class="edit-btn ad-toggle-btn" data-id="${ad.id}" data-enabled="${ad.enabled ? '1' : '0'}">${ad.enabled ? 'ပိတ်မည်' : 'ဖွင့်မည်'}</button>
+        <button class="del-btn ad-del-btn" data-id="${ad.id}">ဖျက်မည်</button>
+      </div>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.ad-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const nowEnabled = btn.dataset.enabled === '1';
+      try{ await db.collection('videoAds').doc(id).update({ enabled: !nowEnabled }); }
+      catch(err){ showToast('ပြောင်း၍ မရပါ — ' + err.message); }
+    });
+  });
+  wrap.querySelectorAll('.ad-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const ad = currentAds.find(a => a.id === id);
+      if(!confirm('ဒီ Ad ကို ဖျက်မှာ သေချာပါသလား?')) return;
+      try{
+        if(ad && ad.videoPath) await deleteFromBunny(ad.videoPath).catch(()=>{});
+        await db.collection('videoAds').doc(id).delete();
+        showToast('Ad ဖျက်ပြီးပါပြီ', 'ok');
+      }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+    });
+  });
+}
+
+document.getElementById('adAddBtn').addEventListener('click', async () => {
+  const link = document.getElementById('fAdLink').value.trim();
+  const placement = document.getElementById('fAdPlacement').value;
+  const enabled = document.getElementById('fAdEnabled').value === 'yes';
+  const okEl = document.getElementById('adStatusOk');
+  const errEl = document.getElementById('adStatusErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+
+  if(!adVideoFile){
+    errEl.textContent = 'Ad video file တစ်ခု upload လုပ်ပါ';
+    errEl.classList.add('show');
+    return;
+  }
+  if(!link){
+    errEl.textContent = 'Link URL ထည့်ပါ (ads နှိပ်ရင် ဘယ်ကို ပို့ချင်လဲ)';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const addBtn = document.getElementById('adAddBtn');
+  addBtn.disabled = true; addBtn.textContent = 'သိမ်းနေသည်...';
+  document.getElementById('adVideoProgressWrap').classList.add('show');
+
+  try{
+    const videoResult = await uploadFile(adVideoFile, `ads/ad_${Date.now()}_${adVideoFile.name}`, pct => {
+      document.getElementById('adVideoProgressBar').style.width = pct + '%';
+      document.getElementById('adVideoProgressLabel').textContent = `Upload: ${pct.toFixed(0)}%`;
+    });
+    await db.collection('videoAds').add({
+      videoUrl: videoResult.url, videoPath: videoResult.path,
+      link, placement, enabled,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    okEl.classList.add('show');
+    setTimeout(() => okEl.classList.remove('show'), 3000);
+    adVideoFile = null;
+    document.getElementById('fAdVideoFile').value = '';
+    document.getElementById('adVideoFileName').textContent = '';
+    document.getElementById('fAdLink').value = '';
+    document.getElementById('fAdPlacement').value = 'top';
+    document.getElementById('fAdEnabled').value = 'yes';
+    document.getElementById('adVideoProgressWrap').classList.remove('show');
+    document.getElementById('adVideoProgressBar').style.width = '0%';
+    document.getElementById('adVideoProgressLabel').textContent = '';
+  }catch(err){
+    errEl.textContent = 'Ad သိမ်း၍ မရပါ — ' + err.message;
+    errEl.classList.add('show');
+  }finally{
+    addBtn.disabled = false; addBtn.textContent = '➕ Ad ထည့်မည်';
+  }
 });
 </script>
 </body>
