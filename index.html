@@ -13,9 +13,10 @@
 
 <style>
   :root{
-    --bg:#1c1516; --bg-elev:#241a1c; --bg-card:#2e2124;
-    --ink:#f3ece6; --ink-dim:#b0a09e; --ink-faint:#8a7478;
-    --accent:#a8283f; --accent-dim:#6b1a29; --gold:#d4a62a; --line:rgba(243,236,230,.08);
+    --bg:#141225; --bg-elev:#1d1933; --bg-card:#272141;
+    --ink:#f2eefb; --ink-dim:#aba4c9; --ink-faint:#7b7397;
+    --accent:#6d4fe0; --accent-dim:#4a35a0; --gold:#d4a62a; --line:rgba(242,238,251,.08);
+    --danger:#e5484d;
     --font-display:'Bebas Neue','Noto Sans Myanmar',sans-serif;
     --font-body:'Work Sans','Noto Sans Myanmar',sans-serif;
   }
@@ -38,7 +39,7 @@
   .login-wrap p{color:var(--ink-faint);font-size:13px;margin-bottom:24px;}
   .field{margin-bottom:14px;text-align:left;}
   .field label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:6px;}
-  .err-msg{font-size:12px;color:var(--accent);margin-top:10px;display:none;}
+  .err-msg{font-size:12px;color:var(--danger);margin-top:10px;display:none;}
   .err-msg.show{display:block;}
 
   /* Dashboard */
@@ -51,7 +52,7 @@
   .status{font-size:12px;padding:9px 12px;border-radius:4px;margin-bottom:14px;display:none;}
   .status.show{display:block;}
   .status-ok{background:rgba(46,160,67,.15);color:#4fd371;}
-  .status-err{background:rgba(168,40,63,.15);color:var(--accent);}
+  .status-err{background:rgba(229,72,77,.15);color:var(--danger);}
   .progress-wrap{background:var(--bg-card);border-radius:20px;height:8px;overflow:hidden;margin-top:8px;display:none;}
   .progress-wrap.show{display:block;}
   .progress-bar{height:100%;background:var(--accent);width:0%;transition:width .2s;}
@@ -67,7 +68,7 @@
   .list-info{flex:1;min-width:0;}
   .list-info .t{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .list-info .m{font-size:11px;color:var(--ink-faint);}
-  .del-btn{font-size:12px;color:var(--accent);border:1px solid var(--accent-dim);padding:6px 12px;border-radius:4px;background:none;}
+  .del-btn{font-size:12px;color:var(--danger);border:1px solid rgba(229,72,77,.4);padding:6px 12px;border-radius:4px;background:none;}
   .empty{color:var(--ink-faint);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:6px;}
   .logout{font-size:12px;color:var(--ink-faint);border:1px solid var(--line);padding:6px 14px;border-radius:20px;background:none;}
   .helper{font-size:11px;color:var(--ink-faint);}
@@ -87,12 +88,12 @@
   .req-actions{display:flex;gap:8px;}
   .approve-btn{font-size:12px;color:#4fd371;border:1px solid #2e8843;padding:8px 16px;border-radius:4px;background:none;}
   .approve-btn:hover{background:rgba(46,160,67,.15);}
-  .reject-btn{font-size:12px;color:var(--accent);border:1px solid var(--accent-dim);padding:8px 16px;border-radius:4px;background:none;}
-  .reject-btn:hover{background:rgba(168,40,63,.15);}
+  .reject-btn{font-size:12px;color:var(--danger);border:1px solid rgba(229,72,77,.4);padding:8px 16px;border-radius:4px;background:none;}
+  .reject-btn:hover{background:rgba(229,72,77,.15);}
   .req-status{font-size:11px;padding:3px 10px;border-radius:10px;font-weight:600;}
   .req-status.pending{background:rgba(212,166,42,.15);color:var(--gold);}
   .req-status.approved{background:rgba(46,160,67,.15);color:#4fd371;}
-  .req-status.rejected{background:rgba(168,40,63,.15);color:var(--accent);}
+  .req-status.rejected{background:rgba(229,72,77,.15);color:var(--danger);}
 
   /* ---------- Mobile refinements ---------- */
   @media (max-width:640px){
@@ -139,8 +140,8 @@
   <svg class="login-mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="mfGradLogin" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0%" stop-color="#a8283f"/>
-        <stop offset="100%" stop-color="#6b1a29"/>
+        <stop offset="0%" stop-color="#6d4fe0"/>
+        <stop offset="100%" stop-color="#4a35a0"/>
       </linearGradient>
     </defs>
     <rect x="1" y="1" width="38" height="38" rx="10" fill="url(#mfGradLogin)"/>
