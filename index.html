@@ -409,7 +409,7 @@ document.getElementById('genreCheckboxes').innerHTML = GENRE_LIST.map(g =>
     <input type="checkbox" class="genre-cb" value="${g}"> ${g}
   </label>`
 ).join('');
-const PREMIUM_DURATION_DAYS = 30; // Approve လုပ်ရင် ဒီရက်ပေါင်းအတိုင်း premium ရမယ် — ချင်ရင် ဒီကို ပြောင်းလို့ရ
+const PREMIUM_DURATION_DAYS = 30; // Fallback default (request ဟောင်းတွေမှာ plan/days data မပါရင်သာ သုံးမယ်) — ပုံမှန်အားဖြင့် user ရွေးလိုက်တဲ့ plan (1လ/3လ/6လ/Lifetime) ကို request doc ထဲက planDays တိုက်ရိုက်ဖတ်ပြီး approve လုပ်ပါတယ်
 
 /* =========================================================
    1b) ADMIN ALLOWLIST — Firestore rules ထဲက admin uid အတိုင်းပဲ
@@ -892,14 +892,16 @@ function listenPremiumRequests(){
     list.innerHTML = snap.docs.map(d => {
       const r = d.data();
       const isPending = r.status === 'pending';
+      const planInfo = r.planLabel ? `${esc(r.planLabel)}${r.planPrice ? ' · ' + r.planPrice.toLocaleString() + ' MMK' : ''}` : '';
+      const isLifetime = r.planId === 'lifetime';
       return `<div class="req-item">
         <div class="req-info">
           <div class="t">${esc(r.email)}</div>
-          <div class="m">${esc(r.paymentMethod)} · <span class="req-status ${r.status}">${r.status}</span></div>
+          <div class="m">${esc(r.paymentMethod)}${planInfo ? ' · ' + planInfo : ''} · <span class="req-status ${r.status}">${r.status}</span></div>
           <div class="txn">Txn ID: ${esc(r.transactionId)}</div>
         </div>
         ${isPending ? `<div class="req-actions">
-          <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}">✓ Approve</button>
+          <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-plandays="${isLifetime ? 'lifetime' : (r.planDays || '')}" data-planlabel="${esc(r.planLabel || '')}">✓ Approve</button>
           <button class="reject-btn" data-id="${d.id}">✕ Reject</button>
         </div>` : ''}
       </div>`;
@@ -907,12 +909,19 @@ function listenPremiumRequests(){
 
     list.querySelectorAll('.approve-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const { id, uid } = btn.dataset;
+        const { id, uid, plandays, planlabel } = btn.dataset;
         try{
-          const expiresAt = firebase.firestore.Timestamp.fromDate(
-            new Date(Date.now() + PREMIUM_DURATION_DAYS * 24 * 60 * 60 * 1000)
-          );
-          await db.collection('users').doc(uid).set({ isPremium: true, premiumExpiresAt: expiresAt }, { merge: true });
+          let expiresAt;
+          if(plandays === 'lifetime'){
+            // "Lifetime" — code ထဲမှာ real infinite expiry မထားနိုင်လို့ 2099 ခုနှစ်ကို far-future အဖြစ်သုံးထားတယ်
+            expiresAt = firebase.firestore.Timestamp.fromDate(new Date('2099-12-31'));
+          } else {
+            const days = plandays ? parseInt(plandays, 10) : PREMIUM_DURATION_DAYS;
+            expiresAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
+          }
+          await db.collection('users').doc(uid).set({
+            isPremium: true, premiumExpiresAt: expiresAt, premiumPlanLabel: planlabel || null
+          }, { merge: true });
           await db.collection('premiumRequests').doc(id).update({
             status: 'approved', reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
