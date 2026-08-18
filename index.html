@@ -1061,6 +1061,12 @@ function listenPromoCodes(){
         }catch(err){ showToast('ဖျက်မရပါ — ' + err.message); }
       });
     });
+  }, err => {
+    // Query/permission error (e.g. missing index, rules not published yet)
+    // — show it directly instead of failing silently, so it's obvious
+    // this is a real bug and not "nothing was created".
+    document.getElementById('promoCodeList').innerHTML =
+      `<div class="empty" style="color:var(--danger);">Code list ကို load မလုပ်နိုင်ပါ — ${esc(err.message)}</div>`;
   });
 }
 
