@@ -72,10 +72,23 @@
   .empty{color:var(--ink-faint);font-size:13px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:6px;}
   .logout{font-size:12px;color:var(--ink-faint);border:1px solid var(--line);padding:6px 14px;border-radius:20px;background:none;}
   .helper{font-size:11px;color:var(--ink-faint);}
+  .req-stats-row{display:flex;gap:10px;margin-bottom:18px;max-width:520px;}
+  .req-stat-box{flex:1;background:var(--bg-card);border:1px solid var(--line);border-radius:10px;padding:14px 10px;text-align:center;}
+  .req-stat-box .n{font-size:24px;font-weight:800;color:var(--ink);}
+  .req-stat-box .l{font-size:11px;color:var(--ink-faint);margin-top:2px;}
+  .req-stat-box.pending .n{color:var(--gold);}
+  .req-stat-box.approved .n{color:#4ade80;}
+  .req-stat-box.rejected .n{color:var(--danger);}
 
   .dash-tabs{display:flex;gap:6px;margin-bottom:24px;background:var(--bg-card);border-radius:8px;padding:5px;width:fit-content;}
   .dash-tab{padding:9px 20px;font-size:13px;font-weight:600;border-radius:6px;color:var(--ink-faint);}
   .dash-tab.active{background:var(--accent);color:#fff;}
+
+  .user-stat-row{display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap;}
+  .user-stat-box{background:var(--bg-card);border:1px solid var(--line);border-radius:10px;padding:12px 20px;min-width:130px;}
+  .user-stat-box .n{font-size:22px;font-weight:700;color:var(--ink);line-height:1.2;}
+  .user-stat-box .l{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
+  .user-stat-box.premium .n{color:var(--gold);}
   .panel{display:none;}
   .panel.open{display:block;}
 
@@ -174,6 +187,17 @@
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
     <button class="dash-tab" id="tabVideoAds">Video Ads</button>
+  </div>
+
+  <div class="user-stat-row" id="userStatRow">
+    <div class="user-stat-box">
+      <div class="n" id="statNormalCount">—</div>
+      <div class="l">Normal Users</div>
+    </div>
+    <div class="user-stat-box premium">
+      <div class="n" id="statPremiumCount">—</div>
+      <div class="l">Premium Users</div>
+    </div>
   </div>
 
   <div class="panel open" id="panelContent">
@@ -278,6 +302,11 @@
   <div class="panel" id="panelPremium">
     <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Premium Requests</div>
     <p class="helper" style="margin-bottom:18px;">User များ တင်သွင်းထားတဲ့ KBZPay/WavePay Transaction ID များကို စစ်ဆေးပြီး Approve/Reject လုပ်ပါ</p>
+    <div class="req-stats-row" id="reqStatsRow">
+      <div class="req-stat-box pending"><div class="n" id="statPending">0</div><div class="l">Pending</div></div>
+      <div class="req-stat-box approved"><div class="n" id="statApproved">0</div><div class="l">Approved</div></div>
+      <div class="req-stat-box rejected"><div class="n" id="statRejected">0</div><div class="l">Rejected</div></div>
+    </div>
     <div id="requestList"></div>
   </div>
 
@@ -311,7 +340,10 @@
     </div>
 
     <div class="dash-title" style="font-size:18px;margin-bottom:10px;">ဖန်တီးထားသော Code များ</div>
-    <div id="promoCodeList"></div>
+    <div class="field" style="max-width:420px;">
+      <select id="promoCodeSelect"></select>
+    </div>
+    <div id="promoCodeDetail"></div>
   </div>
 
   <div class="panel" id="panelAdultPin">
@@ -518,6 +550,7 @@ auth.onAuthStateChanged(user => {
     listenAdultPins();
     listenBanner();
     listenVideoAds();
+    listenUserStats();
   } else {
     document.getElementById('loginWrap').style.display = 'block';
     document.getElementById('dash').style.display = 'none';
@@ -924,7 +957,12 @@ function listenPremiumRequests(){
   db.collection('premiumRequests').orderBy('createdAt','desc').onSnapshot(snap => {
     const list = document.getElementById('requestList');
     const pendingCount = snap.docs.filter(d => d.data().status === 'pending').length;
+    const approvedCount = snap.docs.filter(d => d.data().status === 'approved').length;
+    const rejectedCount = snap.docs.filter(d => d.data().status === 'rejected').length;
     document.getElementById('pendingBadge').textContent = pendingCount ? `(${pendingCount})` : '';
+    document.getElementById('statPending').textContent = pendingCount;
+    document.getElementById('statApproved').textContent = approvedCount;
+    document.getElementById('statRejected').textContent = rejectedCount;
 
     if(snap.empty){ list.innerHTML = `<div class="empty">Request မရှိသေးပါ</div>`; return; }
     list.innerHTML = snap.docs.map(d => {
@@ -941,7 +979,9 @@ function listenPremiumRequests(){
         ${isPending ? `<div class="req-actions">
           <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-plandays="${isLifetime ? 'lifetime' : (r.planDays || '')}" data-planlabel="${esc(r.planLabel || '')}">✓ Approve</button>
           <button class="reject-btn" data-id="${d.id}">✕ Reject</button>
-        </div>` : ''}
+        </div>` : `<div class="req-actions">
+          <button class="reject-btn delete-req-btn" data-id="${d.id}">🗑 Delete</button>
+        </div>`}
       </div>`;
     }).join('');
 
@@ -957,9 +997,17 @@ function listenPremiumRequests(){
             const days = plandays ? parseInt(plandays, 10) : PREMIUM_DURATION_DAYS;
             expiresAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
           }
-          await db.collection('users').doc(uid).set({
-            isPremium: true, premiumExpiresAt: expiresAt, premiumPlanLabel: planlabel || null
+          const userRef = db.collection('users').doc(uid);
+          const userSnap = await userRef.get();
+          const wasEverPremium = userSnap.exists && userSnap.data().everPremium;
+          await userRef.set({
+            isPremium: true, premiumExpiresAt: expiresAt, premiumPlanLabel: planlabel || null, everPremium: true
           }, { merge: true });
+          if(!wasEverPremium){
+            await db.collection('stats').doc('counts').set({
+              totalPremiumUsers: firebase.firestore.FieldValue.increment(1)
+            }, { merge: true });
+          }
           await db.collection('premiumRequests').doc(id).update({
             status: 'approved', reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
@@ -967,7 +1015,7 @@ function listenPremiumRequests(){
         }catch(err){ showToast('Approve မလုပ်နိုင်ပါ — ' + err.message); }
       });
     });
-    list.querySelectorAll('.reject-btn').forEach(btn => {
+    list.querySelectorAll('.reject-btn:not(.delete-req-btn)').forEach(btn => {
       btn.addEventListener('click', async () => {
         try{
           await db.collection('premiumRequests').doc(btn.dataset.id).update({
@@ -977,6 +1025,33 @@ function listenPremiumRequests(){
         }catch(err){ showToast('Reject မလုပ်နိုင်ပါ — ' + err.message); }
       });
     });
+    list.querySelectorAll('.delete-req-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if(!confirm('ဒီ request ကို list ထဲကနေ ဖျက်မှာ သေချာပါသလား? (user ရဲ့ Premium status ကိုတော့ မထိခိုက်ပါ)')) return;
+        try{
+          await db.collection('premiumRequests').doc(btn.dataset.id).delete();
+          showToast('Request ဖျက်ပြီးပါပြီ', 'ok');
+        }catch(err){ showToast('ဖျက်မရပါ — ' + err.message); }
+      });
+    });
+  });
+}
+
+/* ---------- User stats (Normal vs Premium count) ----------
+   Reads the same public stats/counts doc that the site's Support page
+   reads — it's kept accurate in real time by increments at signup
+   (index.html) and at premium approval (this file, below), so admin
+   just displays it here rather than recomputing anything. */
+function listenUserStats(){
+  db.collection('stats').doc('counts').onSnapshot(doc => {
+    const d = doc.exists ? doc.data() : {};
+    const total = d.totalUsers || 0;
+    const premium = d.totalPremiumUsers || 0;
+    document.getElementById('statNormalCount').textContent = Math.max(0, total - premium).toLocaleString();
+    document.getElementById('statPremiumCount').textContent = premium.toLocaleString();
+  }, () => {
+    document.getElementById('statNormalCount').textContent = '!';
+    document.getElementById('statPremiumCount').textContent = '!';
   });
 }
 
@@ -1017,58 +1092,85 @@ document.getElementById('createPromoBtn').addEventListener('click', async () => 
     });
     okEl.textContent = `✓ Code "${code}" ဖန်တီးပြီးပါပြီ — user ကို ဒီ code ကို ဝေပေးလိုက်ပါ`;
     okEl.classList.add('show');
+    pendingPromoSelectId = code;
     document.getElementById('fPromoCode').value = '';
     document.getElementById('fPromoMaxUses').value = '';
     document.getElementById('fPromoLabel').value = '';
   }catch(err){ errEl.textContent = 'Code ဖန်တီးမရပါ — ' + err.message; errEl.classList.add('show'); }
 });
 
+let promoCodesCache = []; // [{id, ...data}] — kept in sync by the listener, read by the dropdown
+let pendingPromoSelectId = null; // set right after creating a code so the dropdown jumps to it
+
 function listenPromoCodes(){
   db.collection('inviteCodes').orderBy('createdAt', 'desc').onSnapshot(snap => {
-    const list = document.getElementById('promoCodeList');
-    if(snap.empty){ list.innerHTML = `<div class="empty">Code မဖန်တီးရသေးပါ</div>`; return; }
-    list.innerHTML = snap.docs.map(d => {
-      const c = d.data();
-      const usesLabel = c.maxUses ? `${c.usedCount || 0} / ${c.maxUses}` : `${c.usedCount || 0} / ∞`;
-      const statusLabel = c.active ? 'Active' : 'Inactive';
-      return `<div class="req-item">
-        <div class="req-info">
-          <div class="t">${esc(d.id)} ${c.label ? '— ' + esc(c.label) : ''}</div>
-          <div class="m">${c.trialDays} ရက် trial · အသုံးပြုမှု ${usesLabel} · <span class="req-status ${c.active ? 'approved' : 'rejected'}">${statusLabel}</span></div>
-        </div>
-        <div class="req-actions">
-          <button class="approve-btn toggle-promo-btn" data-id="${d.id}" data-active="${c.active}">${c.active ? '⏸ Deactivate' : '▶ Activate'}</button>
-          <button class="reject-btn delete-promo-btn" data-id="${d.id}">🗑 Delete</button>
-        </div>
-      </div>`;
-    }).join('');
+    const selectEl = document.getElementById('promoCodeSelect');
+    const prevSelected = selectEl.value;
+    promoCodesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    list.querySelectorAll('.toggle-promo-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const isActive = btn.dataset.active === 'true';
-        try{
-          await db.collection('inviteCodes').doc(btn.dataset.id).update({ active: !isActive });
-          showToast(isActive ? 'Code ကို ပိတ်လိုက်ပါပြီ' : 'Code ကို ပြန်ဖွင့်ပေးလိုက်ပါပြီ', 'ok');
-        }catch(err){ showToast('မလုပ်နိုင်ပါ — ' + err.message); }
-      });
-    });
-    list.querySelectorAll('.delete-promo-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if(!confirm(`"${btn.dataset.id}" ကို ဖျက်မှာ သေချာပါသလား?`)) return;
-        try{
-          await db.collection('inviteCodes').doc(btn.dataset.id).delete();
-          showToast('Code ဖျက်ပြီးပါပြီ', 'ok');
-        }catch(err){ showToast('ဖျက်မရပါ — ' + err.message); }
-      });
-    });
+    if(promoCodesCache.length === 0){
+      selectEl.innerHTML = `<option value="">— Code မဖန်တီးရသေးပါ —</option>`;
+      document.getElementById('promoCodeDetail').innerHTML = '';
+      return;
+    }
+    selectEl.innerHTML = promoCodesCache.map(c => {
+      const usesLabel = c.maxUses ? `${c.usedCount || 0}/${c.maxUses}` : `${c.usedCount || 0}/∞`;
+      const statusIcon = c.active ? '🟢' : '⚪';
+      return `<option value="${esc(c.id)}">${statusIcon} ${esc(c.id)} — ${c.trialDays}ရက် — ${usesLabel}${c.label ? ' — ' + esc(c.label) : ''}</option>`;
+    }).join('');
+    // Selection priority: a just-created code (jump to it) > whichever
+    // code was already selected (e.g. after a toggle/delete elsewhere) >
+    // fall back to the newest code (top of the list).
+    let nextSelected;
+    if(pendingPromoSelectId && promoCodesCache.some(c => c.id === pendingPromoSelectId)){
+      nextSelected = pendingPromoSelectId;
+      pendingPromoSelectId = null;
+    } else if(promoCodesCache.some(c => c.id === prevSelected)){
+      nextSelected = prevSelected;
+    } else {
+      nextSelected = promoCodesCache[0].id;
+    }
+    selectEl.value = nextSelected;
+    renderPromoCodeDetail(nextSelected);
   }, err => {
-    // Query/permission error (e.g. missing index, rules not published yet)
-    // — show it directly instead of failing silently, so it's obvious
-    // this is a real bug and not "nothing was created".
-    document.getElementById('promoCodeList').innerHTML =
+    document.getElementById('promoCodeSelect').innerHTML = `<option value="">— Load မရပါ —</option>`;
+    document.getElementById('promoCodeDetail').innerHTML =
       `<div class="empty" style="color:var(--danger);">Code list ကို load မလုပ်နိုင်ပါ — ${esc(err.message)}</div>`;
   });
 }
+
+function renderPromoCodeDetail(codeId){
+  const detail = document.getElementById('promoCodeDetail');
+  const c = promoCodesCache.find(x => x.id === codeId);
+  if(!c){ detail.innerHTML = ''; return; }
+  const usesLabel = c.maxUses ? `${c.usedCount || 0} / ${c.maxUses}` : `${c.usedCount || 0} / ∞ (unlimited)`;
+  const statusLabel = c.active ? 'Active' : 'Inactive';
+  detail.innerHTML = `<div class="req-item" style="margin-top:10px;">
+    <div class="req-info">
+      <div class="t">${esc(c.id)} ${c.label ? '— ' + esc(c.label) : ''}</div>
+      <div class="m">${c.trialDays} ရက် trial · အသုံးပြုမှု ${usesLabel} · <span class="req-status ${c.active ? 'approved' : 'rejected'}">${statusLabel}</span></div>
+    </div>
+    <div class="req-actions">
+      <button class="approve-btn" id="promoToggleActiveBtn" data-active="${c.active}">${c.active ? '⏸ Deactivate' : '▶ Activate'}</button>
+      <button class="reject-btn" id="promoDeleteBtn">🗑 Delete</button>
+    </div>
+  </div>`;
+  document.getElementById('promoToggleActiveBtn').addEventListener('click', async () => {
+    const isActive = c.active;
+    try{
+      await db.collection('inviteCodes').doc(c.id).update({ active: !isActive });
+      showToast(isActive ? 'Code ကို ပိတ်လိုက်ပါပြီ' : 'Code ကို ပြန်ဖွင့်ပေးလိုက်ပါပြီ', 'ok');
+    }catch(err){ showToast('မလုပ်နိုင်ပါ — ' + err.message); }
+  });
+  document.getElementById('promoDeleteBtn').addEventListener('click', async () => {
+    if(!confirm(`"${c.id}" ကို ဖျက်မှာ သေချာပါသလား?`)) return;
+    try{
+      await db.collection('inviteCodes').doc(c.id).delete();
+      showToast('Code ဖျက်ပြီးပါပြီ', 'ok');
+    }catch(err){ showToast('ဖျက်မရပါ — ' + err.message); }
+  });
+}
+document.getElementById('promoCodeSelect').addEventListener('change', (e) => renderPromoCodeDetail(e.target.value));
 
 /* ---------- 18+ PIN ---------- */
 const ADULT_PIN_DURATION_DAYS = 5;
