@@ -170,6 +170,7 @@
   <div class="dash-tabs">
     <button class="dash-tab active" id="tabContent">Content</button>
     <button class="dash-tab" id="tabPremium">Premium Requests <span id="pendingBadge"></span></button>
+    <button class="dash-tab" id="tabPromo">Promo Codes</button>
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
     <button class="dash-tab" id="tabVideoAds">Video Ads</button>
@@ -278,6 +279,39 @@
     <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Premium Requests</div>
     <p class="helper" style="margin-bottom:18px;">User များ တင်သွင်းထားတဲ့ KBZPay/WavePay Transaction ID များကို စစ်ဆေးပြီး Approve/Reject လုပ်ပါ</p>
     <div id="requestList"></div>
+  </div>
+
+  <div class="panel" id="panelPromo">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Promo / Trial Invite Codes</div>
+    <p class="helper" style="margin-bottom:18px;">Invite code တစ်ခု ဖန်တီးပြီး user ကို ဝေပေးပါ — user က code ထည့်လိုက်တာနဲ့ ရွေးထားတဲ့ ရက်ပေါင်းအတွက် Premium အလိုအလျောက် ရရှိသွားပါမယ် (admin approve လုပ်စရာ မလိုပါဘူး)။ User တစ်ယောက်ကို trial တစ်ကြိမ်ပဲ ခွင့်ပြုပါတယ်။</p>
+
+    <div class="card-form">
+      <div class="grid-2">
+        <div class="field"><label>Code (ကိုယ်တိုင်ရိုက်/ ဒါမှမဟုတ် Generate နှိပ်ပါ)</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="fPromoCode" placeholder="ဥပမာ - WELCOME5" style="text-transform:uppercase;">
+            <button class="btn btn-ghost" id="genPromoCodeBtn" type="button" style="white-space:nowrap;">🎲 Generate</button>
+          </div>
+        </div>
+        <div class="field"><label>အစမ်းသုံးခွင့် ရက်ပေါင်း *</label>
+          <input type="number" id="fPromoDays" min="1" value="3" placeholder="3">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>အများဆုံး အသုံးပြုခွင့် (ဗလာထားရင် အကန့်အသတ်မဲ့)</label>
+          <input type="number" id="fPromoMaxUses" min="1" placeholder="ဥပမာ - 100 (ဗလာ = unlimited)">
+        </div>
+        <div class="field"><label>Label / မှတ်ချက် (optional — ကိုယ့်အတွက်ပဲ)</label>
+          <input type="text" id="fPromoLabel" placeholder="ဥပမာ - Facebook launch promo">
+        </div>
+      </div>
+      <div class="status status-ok" id="promoStatusOk">✓ Code ဖန်တီးပြီးပါပြီ</div>
+      <div class="status status-err" id="promoStatusErr"></div>
+      <button class="btn btn-primary" id="createPromoBtn">➕ Code ဖန်တီးမည်</button>
+    </div>
+
+    <div class="dash-title" style="font-size:18px;margin-bottom:10px;">ဖန်တီးထားသော Code များ</div>
+    <div id="promoCodeList"></div>
   </div>
 
   <div class="panel" id="panelAdultPin">
@@ -393,9 +427,8 @@ const auth = firebase.app("adminApp").auth();
 const db = firebase.app("adminApp").firestore();
 
 /* =========================================================
-   2) R2 UPLOAD/DELETE — Cloudflare Worker (worker.js) proxy ကနေတဆင့်ပဲ လုပ်ပါတယ်
-      R2 API key ကို browser ထဲ မထားတော့ပါ — Worker ထဲမှာပဲ bucket binding အနေနဲ့ ချိတ်ထားတယ်
-      (Worker request body limit ~100MB — ကျော်ရင် manual R2 upload + URL paste fallback သုံးပါ)
+   2) BUNNY.NET UPLOAD/DELETE — Cloudflare Worker proxy (worker.js) ကနေတဆင့်ပဲ လုပ်ပါတယ်
+      Bunny API key ကို browser ထဲ မထားတော့ပါ — Worker ထဲမှာပဲ secret အနေနဲ့ သိမ်းထားတယ်
    ========================================================= */
 const WORKER_URL = "https://tight-sound-80c6.kopethaung.workers.dev";
 const PULL_ZONE_URL = "https://cdn.maxflixstream.com"; // for reference only — publicUrl now comes back from the Worker directly
@@ -433,17 +466,20 @@ function showToast(msg, type){
 /* ---------- Dashboard tab switching ---------- */
 document.getElementById('tabContent').addEventListener('click', () => switchDashTab('content'));
 document.getElementById('tabPremium').addEventListener('click', () => switchDashTab('premium'));
+document.getElementById('tabPromo').addEventListener('click', () => switchDashTab('promo'));
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
 document.getElementById('tabVideoAds').addEventListener('click', () => switchDashTab('videoads'));
 function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
+  document.getElementById('tabPromo').classList.toggle('active', tab==='promo');
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
   document.getElementById('tabVideoAds').classList.toggle('active', tab==='videoads');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
+  document.getElementById('panelPromo').classList.toggle('open', tab==='promo');
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
   document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
   document.getElementById('panelVideoAds').classList.toggle('open', tab==='videoads');
@@ -478,6 +514,7 @@ auth.onAuthStateChanged(user => {
     document.getElementById('whoami').textContent = user.email + ' အနေဖြင့် login ဝင်ထားသည်';
     listenMovies();
     listenPremiumRequests();
+    listenPromoCodes();
     listenAdultPins();
     listenBanner();
     listenVideoAds();
@@ -622,9 +659,7 @@ async function uploadFile(file, path, onProgress){
   // File ကို Worker ဆီ တိုက်ရိုက် PUT လုပ်တယ် — Worker က R2 binding ကို သုံးပြီး
   // bucket ထဲ တန်းသိမ်းပေးမယ်။ Browser က R2 ကို လုံးဝ တိုက်ရိုက် ဆက်သွယ်စရာမလိုတော့ဘူး
   // (CORS/presigned-URL/signature ပြဿနာ လုံးဝ ကင်းရှင်းသွားမယ်) — ဒါပေမဲ့ Cloudflare
-  // Workers ရဲ့ request body size limit (Free/Pro plan ~100MB) ကို မကျော်ရပါ။
-  // 100MB ကျော်တဲ့ file ဆို upload button အောက်က "R2 dashboard ကနေ manual upload
-  // လုပ်ပြီး public URL ကို paste" ဆိုတဲ့ fallback field ကို အစားသုံးပါ။
+  // Workers ရဲ့ request body size limit (Free plan ~100MB) ကို မကျော်ရပါ။
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', WORKER_URL, true);
@@ -940,6 +975,90 @@ function listenPremiumRequests(){
           });
           showToast('Request reject လုပ်ပြီးပါပြီ', 'ok');
         }catch(err){ showToast('Reject မလုပ်နိုင်ပါ — ' + err.message); }
+      });
+    });
+  });
+}
+
+/* ---------- Promo / Trial Invite Codes ---------- */
+function generateRandomCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I to avoid confusion
+  let code = '';
+  for(let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+document.getElementById('genPromoCodeBtn').addEventListener('click', () => {
+  document.getElementById('fPromoCode').value = generateRandomCode();
+});
+
+document.getElementById('createPromoBtn').addEventListener('click', async () => {
+  const code = document.getElementById('fPromoCode').value.trim().toUpperCase();
+  const days = parseInt(document.getElementById('fPromoDays').value, 10);
+  const maxUsesRaw = document.getElementById('fPromoMaxUses').value.trim();
+  const maxUses = maxUsesRaw ? parseInt(maxUsesRaw, 10) : null;
+  const label = document.getElementById('fPromoLabel').value.trim();
+  const okEl = document.getElementById('promoStatusOk');
+  const errEl = document.getElementById('promoStatusErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+
+  if(!code){ errEl.textContent = 'Code ဖြည့်ပါ (သို့) Generate နှိပ်ပါ'; errEl.classList.add('show'); return; }
+  if(!days || days < 1){ errEl.textContent = 'အစမ်းသုံးရက် အနည်းဆုံး ၁ ရက် ဖြည့်ပါ'; errEl.classList.add('show'); return; }
+  try{
+    const ref = db.collection('inviteCodes').doc(code);
+    const existing = await ref.get();
+    if(existing.exists){ errEl.textContent = 'ဒီ code ရှိပြီးသားပါ — တခြား code သုံးပါ'; errEl.classList.add('show'); return; }
+    await ref.set({
+      trialDays: days,
+      maxUses: maxUses,
+      usedCount: 0,
+      active: true,
+      label: label || null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    okEl.textContent = `✓ Code "${code}" ဖန်တီးပြီးပါပြီ — user ကို ဒီ code ကို ဝေပေးလိုက်ပါ`;
+    okEl.classList.add('show');
+    document.getElementById('fPromoCode').value = '';
+    document.getElementById('fPromoMaxUses').value = '';
+    document.getElementById('fPromoLabel').value = '';
+  }catch(err){ errEl.textContent = 'Code ဖန်တီးမရပါ — ' + err.message; errEl.classList.add('show'); }
+});
+
+function listenPromoCodes(){
+  db.collection('inviteCodes').orderBy('createdAt', 'desc').onSnapshot(snap => {
+    const list = document.getElementById('promoCodeList');
+    if(snap.empty){ list.innerHTML = `<div class="empty">Code မဖန်တီးရသေးပါ</div>`; return; }
+    list.innerHTML = snap.docs.map(d => {
+      const c = d.data();
+      const usesLabel = c.maxUses ? `${c.usedCount || 0} / ${c.maxUses}` : `${c.usedCount || 0} / ∞`;
+      const statusLabel = c.active ? 'Active' : 'Inactive';
+      return `<div class="req-item">
+        <div class="req-info">
+          <div class="t">${esc(d.id)} ${c.label ? '— ' + esc(c.label) : ''}</div>
+          <div class="m">${c.trialDays} ရက် trial · အသုံးပြုမှု ${usesLabel} · <span class="req-status ${c.active ? 'approved' : 'rejected'}">${statusLabel}</span></div>
+        </div>
+        <div class="req-actions">
+          <button class="approve-btn toggle-promo-btn" data-id="${d.id}" data-active="${c.active}">${c.active ? '⏸ Deactivate' : '▶ Activate'}</button>
+          <button class="reject-btn delete-promo-btn" data-id="${d.id}">🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.toggle-promo-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const isActive = btn.dataset.active === 'true';
+        try{
+          await db.collection('inviteCodes').doc(btn.dataset.id).update({ active: !isActive });
+          showToast(isActive ? 'Code ကို ပိတ်လိုက်ပါပြီ' : 'Code ကို ပြန်ဖွင့်ပေးလိုက်ပါပြီ', 'ok');
+        }catch(err){ showToast('မလုပ်နိုင်ပါ — ' + err.message); }
+      });
+    });
+    list.querySelectorAll('.delete-promo-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if(!confirm(`"${btn.dataset.id}" ကို ဖျက်မှာ သေချာပါသလား?`)) return;
+        try{
+          await db.collection('inviteCodes').doc(btn.dataset.id).delete();
+          showToast('Code ဖျက်ပြီးပါပြီ', 'ok');
+        }catch(err){ showToast('ဖျက်မရပါ — ' + err.message); }
       });
     });
   });
