@@ -184,6 +184,7 @@
     <button class="dash-tab active" id="tabContent">Content</button>
     <button class="dash-tab" id="tabPremium">Premium Requests <span id="pendingBadge"></span></button>
     <button class="dash-tab" id="tabPromo">Promo Codes</button>
+    <button class="dash-tab" id="tabReports">Reports <span id="reportsBadge"></span></button>
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
     <button class="dash-tab" id="tabVideoAds">Video Ads</button>
@@ -301,7 +302,7 @@
 
   <div class="panel" id="panelPremium">
     <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Premium Requests</div>
-    <p class="helper" style="margin-bottom:18px;">User များ တင်သွင်းထားတဲ့ KBZPay/WavePay Transaction ID များကို စစ်ဆေးပြီး Approve/Reject လုပ်ပါ</p>
+    <p class="helper" style="margin-bottom:18px;">User များ တင်သွင်းထားတဲ့ KBZPay/WavePay Transaction ID ရဲ့ **နောက်ဆုံး ၄ လုံး**ကို ကိုယ့် payment app မှတ်တမ်းက ငွေလွှဲစာရင်းနဲ့ ကိုက်ညီမလား စစ်ဆေးပြီး Approve/Reject လုပ်ပါ</p>
     <div class="req-stats-row" id="reqStatsRow">
       <div class="req-stat-box pending"><div class="n" id="statPending">0</div><div class="l">Pending</div></div>
       <div class="req-stat-box approved"><div class="n" id="statApproved">0</div><div class="l">Approved</div></div>
@@ -344,6 +345,12 @@
       <select id="promoCodeSelect"></select>
     </div>
     <div id="promoCodeDetail"></div>
+  </div>
+
+  <div class="panel" id="panelReports">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Reported Videos</div>
+    <p class="helper" style="margin-bottom:18px;">Video ဖွင့်လို့မရ/ပျက်နေတယ်ဆိုပြီး user တွေ တင်သွင်းလိုက်တဲ့ report များ — R2 link ပြန်စစ်ပြီး Resolve လုပ်ပါ</p>
+    <div id="reportsList"></div>
   </div>
 
   <div class="panel" id="panelAdultPin">
@@ -499,6 +506,7 @@ function showToast(msg, type){
 document.getElementById('tabContent').addEventListener('click', () => switchDashTab('content'));
 document.getElementById('tabPremium').addEventListener('click', () => switchDashTab('premium'));
 document.getElementById('tabPromo').addEventListener('click', () => switchDashTab('promo'));
+document.getElementById('tabReports').addEventListener('click', () => switchDashTab('reports'));
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
 document.getElementById('tabVideoAds').addEventListener('click', () => switchDashTab('videoads'));
@@ -506,12 +514,14 @@ function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
   document.getElementById('tabPromo').classList.toggle('active', tab==='promo');
+  document.getElementById('tabReports').classList.toggle('active', tab==='reports');
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
   document.getElementById('tabVideoAds').classList.toggle('active', tab==='videoads');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
   document.getElementById('panelPromo').classList.toggle('open', tab==='promo');
+  document.getElementById('panelReports').classList.toggle('open', tab==='reports');
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
   document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
   document.getElementById('panelVideoAds').classList.toggle('open', tab==='videoads');
@@ -547,6 +557,7 @@ auth.onAuthStateChanged(user => {
     listenMovies();
     listenPremiumRequests();
     listenPromoCodes();
+    listenReports();
     listenAdultPins();
     listenBanner();
     listenVideoAds();
@@ -974,7 +985,7 @@ function listenPremiumRequests(){
         <div class="req-info">
           <div class="t">${esc(r.email)}</div>
           <div class="m">${esc(r.paymentMethod)}${planInfo ? ' · ' + planInfo : ''} · <span class="req-status ${r.status}">${r.status}</span></div>
-          <div class="txn">Txn ID: ${esc(r.transactionId)}</div>
+          <div class="txn">Txn ID (နောက်ဆုံး ၄ လုံး): ${esc(r.transactionId)}</div>
         </div>
         ${isPending ? `<div class="req-actions">
           <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-plandays="${isLifetime ? 'lifetime' : (r.planDays || '')}" data-planlabel="${esc(r.planLabel || '')}">✓ Approve</button>
@@ -1171,6 +1182,52 @@ function renderPromoCodeDetail(codeId){
   });
 }
 document.getElementById('promoCodeSelect').addEventListener('change', (e) => renderPromoCodeDetail(e.target.value));
+
+/* ---------- Reported videos ---------- */
+function listenReports(){
+  db.collection('reports').orderBy('createdAt', 'desc').onSnapshot(snap => {
+    const list = document.getElementById('reportsList');
+    const openCount = snap.docs.filter(d => d.data().status === 'open').length;
+    document.getElementById('reportsBadge').textContent = openCount > 0 ? openCount : '';
+    if(snap.empty){ list.innerHTML = `<div class="empty">Report ဘာမှ မရှိသေးပါ</div>`; return; }
+    list.innerHTML = snap.docs.map(d => {
+      const r = d.data();
+      const isOpen = r.status !== 'resolved';
+      const when = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString() : '';
+      return `<div class="req-item">
+        <div class="req-info">
+          <div class="t">${esc(r.movieTitle || r.movieId)} <span class="req-status ${isOpen ? 'pending' : 'approved'}">${isOpen ? 'Open' : 'Resolved'}</span></div>
+          <div class="m">${esc(r.reason || '')} ${r.email ? '· ' + esc(r.email) : '· Guest'} ${when ? '· ' + esc(when) : ''}</div>
+        </div>
+        <div class="req-actions">
+          ${isOpen ? `<button class="approve-btn resolve-report-btn" data-id="${d.id}">✓ Resolve</button>` : ''}
+          <button class="reject-btn delete-report-btn" data-id="${d.id}">🗑 Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.resolve-report-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        try{
+          await db.collection('reports').doc(btn.dataset.id).update({ status: 'resolved' });
+          showToast('Resolved အဖြစ် သတ်မှတ်ပြီးပါပြီ', 'ok');
+        }catch(err){ showToast('မလုပ်နိုင်ပါ — ' + err.message); }
+      });
+    });
+    list.querySelectorAll('.delete-report-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if(!confirm('ဒီ report ကို ဖျက်မှာ သေချာပါသလား?')) return;
+        try{
+          await db.collection('reports').doc(btn.dataset.id).delete();
+          showToast('Report ဖျက်ပြီးပါပြီ', 'ok');
+        }catch(err){ showToast('ဖျက်မရပါ — ' + err.message); }
+      });
+    });
+  }, err => {
+    document.getElementById('reportsList').innerHTML =
+      `<div class="empty" style="color:var(--danger);">Reports ကို load မလုပ်နိုင်ပါ — ${esc(err.message)}</div>`;
+  });
+}
 
 /* ---------- 18+ PIN ---------- */
 const ADULT_PIN_DURATION_DAYS = 5;
