@@ -533,7 +533,13 @@ function toggleDramaFields(){
   document.getElementById('dramaFields').style.display = isDrama ? 'grid' : 'none';
   document.getElementById('dramaHelper').style.display = isDrama ? 'block' : 'none';
 }
-document.getElementById('fCategory').addEventListener('change', toggleDramaFields);
+document.getElementById('fCategory').addEventListener('change', () => {
+  toggleDramaFields();
+  // Video ကို အရင်ရွေးပြီးမှ category ကို 18+ ဘက် ပြောင်း/ပြန်ပြောင်းရင်
+  // auto-thumbnail ကို မှန်ကန်တဲ့ frame (အလယ်/ပထမ 1 စက္ကန့်) ပြန်ထုတ်ပေးမယ် —
+  // admin ကိုယ်တိုင် thumbnail manual ရွေးထားရင်တော့ မထိပါ (maybeAutoGenerateThumbnail ထဲက guard က ကိုင်ပေးမယ်)
+  if(videoFile && thumbFileIsAuto) maybeAutoGenerateThumbnail(videoFile);
+});
 toggleDramaFields();
 
 /* ---------- Auth ---------- */
@@ -651,6 +657,11 @@ async function maybeAutoFillDuration(videoFileArg){
 document.getElementById('fDuration').addEventListener('input', () => { durationFieldIsAuto = false; });
 
 function captureVideoFrame(file, seekToSeconds){
+  // seekToSeconds can be a plain number (seek to that many seconds from the
+  // start, used for regular Movies/Short Drama), or the string 'middle'
+  // (used for 18+ content — seeks to roughly the midpoint of the video
+  // instead of the very start, plus a tiny +0.2s nudge past the exact
+  // midpoint so we don't land on a black/transition frame).
   return new Promise((resolve, reject) => {
     const videoEl = document.createElement('video');
     videoEl.preload = 'metadata';
@@ -660,7 +671,9 @@ function captureVideoFrame(file, seekToSeconds){
     videoEl.src = objUrl;
     const cleanup = () => URL.revokeObjectURL(objUrl);
     videoEl.addEventListener('loadeddata', () => {
-      videoEl.currentTime = Math.min(seekToSeconds, Math.max((videoEl.duration || seekToSeconds) - 0.1, 0));
+      const duration = videoEl.duration || 0;
+      const target = seekToSeconds === 'middle' ? (duration / 2) + 0.2 : seekToSeconds;
+      videoEl.currentTime = Math.min(target, Math.max(duration - 0.1, 0));
     });
     videoEl.addEventListener('seeked', () => {
       try{
@@ -682,13 +695,20 @@ function captureVideoFrame(file, seekToSeconds){
 async function maybeAutoGenerateThumbnail(videoFileArg){
   // User က thumbnail ကို manual ရွေးထားပြီးသားဆိုရင် override မလုပ်ဘူး
   if(thumbFile && !thumbFileIsAuto) return;
+  // 18+ (adult) content ကိုပဲ video ရဲ့ အလယ်နားက frame ယူမယ် — Movies/Short Drama
+  // အားလုံးက အရင်အတိုင်း ပထမ 1 စက္ကန့်က frame ကိုပဲ ဆက်သုံးမယ် (မပြောင်းထား)
+  const isAdult = document.getElementById('fCategory').value === 'adult';
   const hint = document.getElementById('thumbAutoHint');
-  hint.textContent = 'Video ရဲ့ ပထမပိုင်း frame ကနေ thumbnail ကို auto-generate လုပ်နေပါတယ်...';
+  hint.textContent = isAdult
+    ? 'Video ရဲ့ အလယ်ပိုင်း frame ကနေ thumbnail ကို auto-generate လုပ်နေပါတယ်...'
+    : 'Video ရဲ့ ပထမပိုင်း frame ကနေ thumbnail ကို auto-generate လုပ်နေပါတယ်...';
   try{
-    const thumb = await captureVideoFrame(videoFileArg, 1);
+    const thumb = await captureVideoFrame(videoFileArg, isAdult ? 'middle' : 1);
     thumbFile = thumb;
     thumbFileIsAuto = true;
-    document.getElementById('thumbFileName').textContent = `✓ auto-thumb.jpg (video ရဲ့ 0:01 frame ကနေ auto-generate)`;
+    document.getElementById('thumbFileName').textContent = isAdult
+      ? `✓ auto-thumb.jpg (video ရဲ့ အလယ်ပိုင်း frame ကနေ auto-generate)`
+      : `✓ auto-thumb.jpg (video ရဲ့ 0:01 frame ကနေ auto-generate)`;
     hint.textContent = '';
     // Preview အနေနဲ့ label မှာ ပြထားပေမယ့် thumbDrop file input ကို မထိပါ — user က thumbnail file ကို manual ရွေးရင်တော့ ဒီ auto version ကို override လုပ်ပေးမယ်
   }catch(err){
