@@ -1269,21 +1269,33 @@ function generateRandomPin(){
 }
 
 document.getElementById('genPinBtn').addEventListener('click', async () => {
-  const email = document.getElementById('fPinEmail').value.trim();
+  const email = document.getElementById('fPinEmail').value.trim().toLowerCase();
   const okEl = document.getElementById('pinGenResult');
   const errEl = document.getElementById('pinGenErr');
   okEl.style.display = 'none'; errEl.style.display = 'none';
   if(!email){ errEl.textContent = 'Customer email ဖြည့်ပါ'; errEl.style.display = 'block'; return; }
   try{
-    const snap = await db.collection('users').where('email', '==', email).limit(1).get();
-    if(snap.empty){ errEl.textContent = 'ဒီ email နဲ့ account ရှာမတွေ့ပါ — customer အရင် site ထဲ login/signup ဝင်ဖို့ လိုပါတယ်'; errEl.style.display = 'block'; return; }
-    const uid = snap.docs[0].id;
-    const u = snap.docs[0].data();
+    // Fast path: exact (case-normalized) match — works for anyone who signed up
+    // after email normalization was added.
+    let snap = await db.collection('users').where('email', '==', email).limit(1).get();
+    let uid = snap.empty ? null : snap.docs[0].id;
+    let u = snap.empty ? null : snap.docs[0].data();
+    if(!uid){
+      // Fallback for accounts created before email normalization — their stored
+      // email may still have mixed case (e.g. "John@Gmail.com"), so this does a
+      // one-time case-insensitive scan across all users to find them anyway.
+      const allSnap = await db.collection('users').get();
+      const match = allSnap.docs.find(d => (d.data().email || '').trim().toLowerCase() === email);
+      if(match){ uid = match.id; u = match.data(); }
+    }
+    if(!uid){ errEl.textContent = 'ဒီ email နဲ့ account ရှာမတွေ့ပါ — customer အရင် site ထဲ login/signup ဝင်ဖို့ လိုပါတယ်'; errEl.style.display = 'block'; return; }
     const pin = generateRandomPin();
     const expiresAt = firebase.firestore.Timestamp.fromDate(
       new Date(Date.now() + ADULT_PIN_DURATION_DAYS * 24 * 60 * 60 * 1000)
     );
-    await db.collection('users').doc(uid).set({ adultPin: pin, adultPinExpiresAt: expiresAt }, { merge: true });
+    // Also re-save email in normalized lowercase form, so this account is fixed
+    // for good the next time (self-healing old mixed-case records).
+    await db.collection('users').doc(uid).set({ email, adultPin: pin, adultPinExpiresAt: expiresAt }, { merge: true });
     const premiumNote = u.isPremium ? ' — Premium subscriber ဖြစ်လို့ premium သက်တမ်းနဲ့အတူ auto-sync ဖြစ်ပါမယ်' : ` — ${ADULT_PIN_DURATION_DAYS} ရက် အတွင်း အလုပ်လုပ်ပါမယ်`;
     okEl.textContent = `PIN: ${pin}  —  ${email} အတွက်${premiumNote} — customer ကို ဒီ PIN ကို ပို့ပေးပါ`;
     okEl.style.display = 'block';
