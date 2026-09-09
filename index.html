@@ -188,6 +188,7 @@
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
     <button class="dash-tab" id="tabVideoAds">Video Ads</button>
+    <button class="dash-tab" id="tabShop">Shop</button>
   </div>
 
   <div class="user-stat-row" id="userStatRow">
@@ -444,6 +445,46 @@
     <div class="dash-title" style="font-size:18px;margin-bottom:14px;">ထည့်ထားသော Ads များ</div>
     <div id="adList"></div>
   </div>
+
+  <div class="panel" id="panelShop">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Shop</div>
+    <p class="helper" style="margin-bottom:18px;">MLBB Diamond, PUBG UC စသည့် ရောင်းမည့် item ပုံများ တင်ပါ — Public site ထဲက Shop tab မှာ user က ပုံကို click/tap လုပ်လိုက်တာနဲ့ သတ်မှတ်ထားတဲ့ Link (Telegram channel/website) ဆီ တိုက်ရိုက် ရောက်သွားပါမယ်</p>
+
+    <div class="card-form">
+      <div class="grid-2">
+        <div class="field"><label>Product အမည် *</label><input type="text" id="fShopName" placeholder="ဥပမာ - MLBB Diamond"></div>
+        <div class="field"><label>Order (ဂဏန်းငယ်ရင် ရှေ့ကျမည် — မဖြည့်ရင် နောက်ဆုံးတွင် ပါမည်)</label><input type="number" id="fShopOrder" placeholder="ဥပမာ - 1"></div>
+      </div>
+
+      <div class="field">
+        <label>Product ပုံ * (click သို့မဟုတ် drag ဆွဲပြီး ပုံချပါ)</label>
+        <div class="drop-zone" id="shopImageDrop">
+          <input type="file" id="fShopImageFile" accept="image/*">
+          <span id="shopImageDropLabel">Click သို့မဟုတ် drag ဆွဲပြီး ပုံချပါ</span>
+          <div class="file-name" id="shopImageFileName"></div>
+        </div>
+        <div class="progress-wrap" id="shopProgressWrap"><div class="progress-bar" id="shopProgressBar"></div></div>
+        <div class="progress-label" id="shopProgressLabel"></div>
+      </div>
+
+      <div class="field"><label>Link URL * (click/tap လုပ်ရင် ဒီ link ကို တန်းပို့မယ် — ဥပမာ Telegram channel/website)</label>
+        <input type="text" id="fShopLink" placeholder="https://t.me/..."></div>
+
+      <div class="field"><label>ပြမလား</label>
+        <select id="fShopEnabled"><option value="yes">ပြရန် (Enabled)</option><option value="no">မပြရန် (Disabled)</option></select>
+      </div>
+
+      <button class="btn btn-primary" id="shopAddBtn" style="width:100%;">➕ ထည့်မည်</button>
+      <div id="shopEditCancelWrap" style="display:none;margin-top:10px;">
+        <button class="btn btn-ghost" id="shopEditCancelBtn" style="width:100%;">မလုပ်တော့ပါ (Cancel Edit)</button>
+      </div>
+      <div class="status status-ok" id="shopStatusOk" style="margin-top:14px;">✓ သိမ်းဆည်းပြီးပါပြီ</div>
+      <div class="status status-err" id="shopStatusErr" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="dash-title" style="font-size:18px;margin-bottom:14px;">ထည့်ထားသော Product များ</div>
+    <div id="shopList"></div>
+  </div>
 </div>
 
 <div id="toastWrap" class="toast-wrap"></div>
@@ -491,6 +532,9 @@ const ADMIN_UID = "W5AhXhm7TCdOiAP6tvdRwaIfcwn2";
 
 let videoFile = null, thumbFile = null, videoMobileFile = null;
 let editingId = null; // set when editing an existing movie instead of adding a new one
+let shopImageFile = null;
+let editingShopId = null, editingShopData = null; // set when editing an existing shop product
+let currentShopProducts = [];
 
 function showToast(msg, type){
   const wrap = document.getElementById('toastWrap');
@@ -510,6 +554,7 @@ document.getElementById('tabReports').addEventListener('click', () => switchDash
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
 document.getElementById('tabVideoAds').addEventListener('click', () => switchDashTab('videoads'));
+document.getElementById('tabShop').addEventListener('click', () => switchDashTab('shop'));
 function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
@@ -518,6 +563,7 @@ function switchDashTab(tab){
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
   document.getElementById('tabVideoAds').classList.toggle('active', tab==='videoads');
+  document.getElementById('tabShop').classList.toggle('active', tab==='shop');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
   document.getElementById('panelPromo').classList.toggle('open', tab==='promo');
@@ -525,6 +571,7 @@ function switchDashTab(tab){
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
   document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
   document.getElementById('panelVideoAds').classList.toggle('open', tab==='videoads');
+  document.getElementById('panelShop').classList.toggle('open', tab==='shop');
 }
 
 /* ---------- Toggle Series/Episode fields for Short Drama ---------- */
@@ -567,6 +614,7 @@ auth.onAuthStateChanged(user => {
     listenAdultPins();
     listenBanner();
     listenVideoAds();
+    listenShop();
     listenUserStats();
   } else {
     document.getElementById('loginWrap').style.display = 'block';
@@ -612,6 +660,7 @@ wireDrop('videoMobileDrop','fVideoMobileFile','videoMobileDropLabel','videoMobil
 wireDrop('thumbDrop','fThumbFile','thumbDropLabel','thumbFileName', f => { thumbFile = f; thumbFileIsAuto = false; });
 wireDrop('bannerDrop','fBannerFile','bannerDropLabel','bannerFileName', f => bannerFile = f);
 wireDrop('adVideoDrop','fAdVideoFile','adVideoDropLabel','adVideoFileName', f => adVideoFile = f, 'video/');
+wireDrop('shopImageDrop','fShopImageFile','shopImageDropLabel','shopImageFileName', f => shopImageFile = f, 'image/');
 
 /* ---------- Auto-thumbnail + auto-duration + auto-aspect-ratio from the video file itself ---------- */
 let thumbFileIsAuto = false; // user ကိုယ်တိုင် thumbnail ရွေးထားရင် auto-generate က override မလုပ်ဘူး
@@ -1525,6 +1574,149 @@ document.getElementById('adAddBtn').addEventListener('click', async () => {
     errEl.classList.add('show');
   }finally{
     addBtn.disabled = false; addBtn.textContent = '➕ Ad ထည့်မည်';
+  }
+});
+
+/* ---------- Shop (product tiles -> direct link, e.g. MLBB Diamond / PUBG UC storefront) ----------
+   "enabled" is filtered client-side on the public site rather than via .where(), so this only
+   orders by a single field ('order') and never needs a Firestore composite index. */
+function listenShop(){
+  db.collection('shopProducts').orderBy('order', 'asc').onSnapshot(snap => {
+    currentShopProducts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderShopList();
+  }, err => {
+    document.getElementById('shopList').innerHTML = `<div class="empty">List ကို load လုပ်၍ မရပါ — ${esc(err.message)}</div>`;
+  });
+}
+
+function renderShopList(){
+  const wrap = document.getElementById('shopList');
+  if(!currentShopProducts.length){
+    wrap.innerHTML = '<div class="empty">Product မတင်ရသေးပါ</div>';
+    return;
+  }
+  wrap.innerHTML = currentShopProducts.map(p => `
+    <div class="list-item">
+      <img src="${esc(p.imageUrl)}" class="list-thumb" style="width:52px;height:52px;object-fit:cover;">
+      <div class="list-info">
+        <div class="t">${esc(p.name)} ${p.enabled === false ? '<span style="color:var(--ink-faint);">(Disabled)</span>' : ''}</div>
+        <div class="m">${esc(p.link || 'link မထည့်ရသေးပါ')}</div>
+      </div>
+      <div class="list-actions">
+        <button class="edit-btn shop-edit-btn" data-id="${p.id}">ပြင်မည်</button>
+        <button class="del-btn shop-del-btn" data-id="${p.id}">ဖျက်မည်</button>
+      </div>
+    </div>
+  `).join('');
+  wrap.querySelectorAll('.shop-edit-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = currentShopProducts.find(x => x.id === btn.dataset.id);
+      if(p) enterShopEditMode(p);
+    });
+  });
+  wrap.querySelectorAll('.shop-del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.id;
+      const p = currentShopProducts.find(x => x.id === id);
+      if(!confirm('ဒီ Product ကို ဖျက်မှာ သေချာပါသလား?')) return;
+      try{
+        if(p && p.imagePath) await deleteFromBunny(p.imagePath).catch(()=>{});
+        await db.collection('shopProducts').doc(id).delete();
+        showToast('Product ဖျက်ပြီးပါပြီ', 'ok');
+        if(editingShopId === id){ resetShopForm(); exitShopEditMode(); }
+      }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+    });
+  });
+}
+
+function resetShopForm(){
+  shopImageFile = null;
+  document.getElementById('fShopName').value = '';
+  document.getElementById('fShopLink').value = '';
+  document.getElementById('fShopOrder').value = '';
+  document.getElementById('fShopEnabled').value = 'yes';
+  document.getElementById('fShopImageFile').value = '';
+  document.getElementById('shopImageFileName').textContent = '';
+  document.getElementById('shopProgressWrap').classList.remove('show');
+  document.getElementById('shopProgressBar').style.width = '0%';
+  document.getElementById('shopProgressLabel').textContent = '';
+}
+function enterShopEditMode(p){
+  editingShopId = p.id;
+  editingShopData = p;
+  document.getElementById('fShopName').value = p.name || '';
+  document.getElementById('fShopLink').value = p.link || '';
+  document.getElementById('fShopOrder').value = (p.order !== undefined && p.order !== null) ? p.order : '';
+  document.getElementById('fShopEnabled').value = p.enabled === false ? 'no' : 'yes';
+  document.getElementById('shopImageFileName').textContent = p.imageUrl ? '✓ လက်ရှိပုံကို ဆက်သုံးမည် (အသစ်မရွေးရင်)' : '';
+  document.getElementById('shopAddBtn').textContent = '💾 Update လုပ်မည်';
+  document.getElementById('shopEditCancelWrap').style.display = 'block';
+  document.getElementById('panelShop').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function exitShopEditMode(){
+  editingShopId = null;
+  editingShopData = null;
+  document.getElementById('shopAddBtn').textContent = '➕ ထည့်မည်';
+  document.getElementById('shopEditCancelWrap').style.display = 'none';
+}
+document.getElementById('shopEditCancelBtn').addEventListener('click', () => { resetShopForm(); exitShopEditMode(); });
+
+document.getElementById('shopAddBtn').addEventListener('click', async () => {
+  const name = document.getElementById('fShopName').value.trim();
+  const link = document.getElementById('fShopLink').value.trim();
+  const orderRaw = document.getElementById('fShopOrder').value.trim();
+  const enabled = document.getElementById('fShopEnabled').value === 'yes';
+  const okEl = document.getElementById('shopStatusOk');
+  const errEl = document.getElementById('shopStatusErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+
+  if(!name || !link){
+    errEl.textContent = 'Product အမည်နှင့် Link URL နှစ်ခုလုံး ဖြည့်ပါ';
+    errEl.classList.add('show');
+    return;
+  }
+  if(!editingShopId && !shopImageFile){
+    errEl.textContent = 'Product ပုံ တစ်ပုံ upload လုပ်ပါ';
+    errEl.classList.add('show');
+    return;
+  }
+
+  const btn = document.getElementById('shopAddBtn');
+  btn.disabled = true; btn.textContent = editingShopId ? 'Update လုပ်နေသည်...' : 'သိမ်းနေသည်...';
+  document.getElementById('shopProgressWrap').classList.add('show');
+
+  try{
+    let imageResult = editingShopId ? { url: editingShopData.imageUrl, path: editingShopData.imagePath } : null;
+    if(shopImageFile){
+      const oldPath = editingShopId ? editingShopData.imagePath : null;
+      imageResult = await uploadFile(shopImageFile, `shop/shop_${Date.now()}_${shopImageFile.name}`, pct => {
+        document.getElementById('shopProgressBar').style.width = pct + '%';
+        document.getElementById('shopProgressLabel').textContent = `Upload: ${pct.toFixed(0)}%`;
+      });
+      if(oldPath) deleteFromBunny(oldPath).catch(()=>{});
+    }
+    const order = orderRaw ? Number(orderRaw) : (editingShopId ? (editingShopData.order ?? Date.now()) : Date.now());
+    const data = {
+      name, link, order, enabled,
+      imageUrl: imageResult.url, imagePath: imageResult.path
+    };
+    if(editingShopId){
+      await db.collection('shopProducts').doc(editingShopId).update(data);
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('shopProducts').add(data);
+    }
+    okEl.textContent = editingShopId ? '✓ Update ပြီးပါပြီ' : '✓ ထည့်ပြီးပါပြီ';
+    okEl.classList.add('show');
+    setTimeout(() => okEl.classList.remove('show'), 3000);
+    const wasEditing = editingShopId;
+    resetShopForm();
+    if(wasEditing) exitShopEditMode();
+  }catch(err){
+    errEl.textContent = (editingShopId ? 'Update' : 'ထည့်') + '၍ မရပါ — ' + err.message;
+    errEl.classList.add('show');
+  }finally{
+    btn.disabled = false; btn.textContent = editingShopId ? '💾 Update လုပ်မည်' : '➕ ထည့်မည်';
   }
 });
 </script>
