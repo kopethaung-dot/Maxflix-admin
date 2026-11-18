@@ -1058,7 +1058,7 @@ function listenPremiumRequests(){
         </div>
         ${isPending ? `<div class="req-actions">
           <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-plandays="${isLifetime ? 'lifetime' : (r.planDays || '')}" data-planlabel="${esc(r.planLabel || '')}">✓ Approve</button>
-          <button class="reject-btn" data-id="${d.id}">✕ Reject</button>
+          <button class="reject-btn" data-id="${d.id}" data-uid="${esc(r.uid)}">✕ Reject</button>
         </div>` : `<div class="req-actions">
           <button class="reject-btn delete-req-btn" data-id="${d.id}">🗑 Delete</button>
         </div>`}
@@ -1069,19 +1069,28 @@ function listenPremiumRequests(){
       btn.addEventListener('click', async () => {
         const { id, uid, plandays, planlabel } = btn.dataset;
         try{
-          let expiresAt;
+          const userRef = db.collection('users').doc(uid);
+          const userSnap = await userRef.get();
+          const ud = userSnap.exists ? userSnap.data() : {};
+          const wasEverPremium = !!ud.everPremium;
+          // လက်ရှိ သက်တမ်း (ကျန်ရှိနေသေးရင် နောက်ထပ် plan ကို အဲဒီအပေါ်မှာ ပေါင်းထည့် — အစောတိုးလို့ ကျန်ရက်မပျောက်စေဖို့)
+          const curMs = ud.premiumExpiresAt ? (ud.premiumExpiresAt.toMillis ? ud.premiumExpiresAt.toMillis() : Number(ud.premiumExpiresAt)) : 0;
+          const curActive = !!ud.isPremium && curMs > Date.now();
+          const curLifetime = curActive && new Date(curMs).getFullYear() >= 2090;
+          let expiresAt, labelToSave = planlabel || null;
           if(plandays === 'lifetime'){
             // "Lifetime" — code ထဲမှာ real infinite expiry မထားနိုင်လို့ 2099 ခုနှစ်ကို far-future အဖြစ်သုံးထားတယ်
             expiresAt = firebase.firestore.Timestamp.fromDate(new Date('2099-12-31'));
+          } else if(curLifetime){
+            // Lifetime ရှိပြီးသားသူကို plan တိုတိုနဲ့ downgrade မလုပ်ဘူး
+            expiresAt = ud.premiumExpiresAt; labelToSave = ud.premiumPlanLabel || planlabel || null;
           } else {
             const days = plandays ? parseInt(plandays, 10) : PREMIUM_DURATION_DAYS;
-            expiresAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + days * 24 * 60 * 60 * 1000));
+            const base = curActive ? curMs : Date.now();
+            expiresAt = firebase.firestore.Timestamp.fromMillis(base + days * 24 * 60 * 60 * 1000);
           }
-          const userRef = db.collection('users').doc(uid);
-          const userSnap = await userRef.get();
-          const wasEverPremium = userSnap.exists && userSnap.data().everPremium;
           await userRef.set({
-            isPremium: true, premiumExpiresAt: expiresAt, premiumPlanLabel: planlabel || null, everPremium: true
+            isPremium: true, premiumExpiresAt: expiresAt, premiumPlanLabel: labelToSave, everPremium: true
           }, { merge: true });
           if(!wasEverPremium){
             await db.collection('stats').doc('counts').set({
@@ -1091,7 +1100,9 @@ function listenPremiumRequests(){
           await db.collection('premiumRequests').doc(id).update({
             status: 'approved', reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          showToast('Premium approve လုပ်ပြီးပါပြီ', 'ok');
+          const pr = await sendUserPush(uid, '🎉 Premium အတည်ပြုပြီးပါပြီ',
+            (planlabel ? planlabel + ' — ' : '') + 'အခုကစပြီး Premium ဇာတ်ကား/Series အားလုံး ကြည့်ရှုနိုင်ပါပြီ');
+          showToast('Premium approve လုပ်ပြီးပါပြီ' + pushToastSuffix(pr), 'ok');
         }catch(err){ showToast('Approve မလုပ်နိုင်ပါ — ' + err.message); }
       });
     });
@@ -1101,7 +1112,9 @@ function listenPremiumRequests(){
           await db.collection('premiumRequests').doc(btn.dataset.id).update({
             status: 'rejected', reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          showToast('Request reject လုပ်ပြီးပါပြီ', 'ok');
+          const pr = await sendUserPush(btn.dataset.uid, '⚠️ Premium request ကို လက်မခံနိုင်ပါ',
+            'Transaction ID ပြန်စစ်ပြီး ထပ်တင်ပါ၊ မရရင် Support ကို ဆက်သွယ်ပါ');
+          showToast('Request reject လုပ်ပြီးပါပြီ' + pushToastSuffix(pr), 'ok');
         }catch(err){ showToast('Reject မလုပ်နိုင်ပါ — ' + err.message); }
       });
     });
@@ -1115,6 +1128,40 @@ function listenPremiumRequests(){
       });
     });
   });
+}
+
+/* ---------- Web Push to a user (Worker /push) ----------
+   Approve/Reject ပြီးတာနဲ့ user ရဲ့ ဖုန်း/browser ကို notification ပို့ပေးတယ်။ ပို့မရလည်း approve/reject ကိုမထိခိုက်ဘူး။
+   Worker က ပို့လို့မရတော့တဲ့ (ဖျက်ပြီး/သက်တမ်းကုန်) subscription တွေကို dead[] နဲ့ ပြန်ပြောတာကို ဒီမှာ ရှင်းပေး။ */
+async function sendUserPush(uid, title, body){
+  if(!uid) return null;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try{
+    const tok = await auth.currentUser.getIdToken();
+    const res = await fetch(WORKER_URL.replace(/\/+$/, '') + '/push', {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'Authorization': 'Bearer ' + tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, title, body, url: './', tag: 'premium-result' })
+    });
+    const j = await res.json().catch(() => null);
+    if(!res.ok){ console.warn('push failed:', res.status, j); return null; }
+    if(j && j.dead && j.dead.length) prunePushSubs(uid, j.dead).catch(() => {});
+    return j;
+  }catch(e){ console.warn('push error:', e); return null; }
+  finally{ clearTimeout(timer); }
+}
+async function prunePushSubs(uid, deadEndpoints){
+  const ref = db.collection('users').doc(uid);
+  const snap = await ref.get();
+  const list = (snap.exists && Array.isArray(snap.data().pushSubs)) ? snap.data().pushSubs : [];
+  const next = list.filter(x => deadEndpoints.indexOf(x.endpoint) === -1);
+  if(next.length !== list.length) await ref.set({ pushSubs: next }, { merge: true });
+}
+function pushToastSuffix(pr){
+  if(!pr) return '';
+  if(pr.sent > 0) return ' · 🔔 user ဆီ notification ပို့ပြီး';
+  return ' · (user က Notification မဖွင့်ထားပါ)';
 }
 
 /* ---------- User stats (Normal vs Premium count) ----------
