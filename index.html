@@ -285,6 +285,14 @@
     <button class="btn btn-primary" id="addBtn">➕ Upload &amp; ထည့်မည်</button>
   </div>
 
+  <div id="catalogPanel" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;background:var(--bg-card);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:18px;">
+    <div style="flex:1;min-width:220px;">
+      <div style="font-weight:600;font-size:14px;">⚡ Public Catalog <span style="color:var(--ink-faint);font-weight:400;font-size:12px;">(Firestore read ချွေတာရန်)</span></div>
+      <div id="catalogStatus" style="font-size:12px;color:var(--ink-dim);margin-top:3px;">စစ်ဆေးနေသည်...</div>
+    </div>
+    <button class="btn btn-ghost" id="catalogRebuildBtn" type="button" style="padding:9px 16px;font-size:13px;">🔄 Catalog ပြန်တည်ဆောက်မည်</button>
+  </div>
+
   <div class="dash-title" style="font-size:22px;margin-bottom:14px;">ထည့်ထားသော ဇာတ်ကားများ</div>
   <div class="field" style="max-width:260px;margin-bottom:14px;">
     <label>Category အလိုက် စစ်ထုတ်ကြည့်ရန်</label>
@@ -608,6 +616,7 @@ auth.onAuthStateChanged(user => {
     document.getElementById('dash').style.display = 'block';
     document.getElementById('whoami').textContent = user.email + ' အနေဖြင့် login ဝင်ထားသည်';
     listenMovies();
+    catalogAutoCheck();
     listenPremiumRequests();
     listenPromoCodes();
     listenReports();
@@ -890,10 +899,12 @@ document.getElementById('addBtn').addEventListener('click', async () => {
     };
     if(editingId){
       await db.collection('movies').doc(id).update(payload);
+      catalogQueue(id, 'upsert');
       showToast('ဇာတ်ကား အပ်ဒိတ်လုပ်ပြီးပါပြီ', 'ok');
     } else {
       payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
       await db.collection('movies').doc(id).set(payload);
+      catalogQueue(id, 'upsert');
       statusOk.classList.add('show');
       setTimeout(() => statusOk.classList.remove('show'), 3000);
     }
@@ -961,6 +972,207 @@ document.getElementById('editCancelBtn').addEventListener('click', () => {
   exitEditMode();
 });
 
+/* ---------- Public Catalog (catalog/meta + catalog/s0..sN) ----------
+   Public site က ဇာတ်ကားတွေကို တစ်ကားချင်း (read တစ်ခုစီ) မဖတ်တော့ဘဲ၊ ဇာတ်ကားအများကြီးကို
+   document တစ်ခုထဲ ထုပ်ပိုးထားတဲ့ "catalog shard" (shard တစ်ခုမှာ ဇာတ်ကား ရာချီဆန့်) နဲ့ ဖတ်တယ်။ `movies` collection က
+   source of truth အတိုင်းပဲ — catalog က ပြန်ဖတ်ဖို့ copy သက်သက်။
+   • Movie သိမ်း/ပြင်/ဖျက်တိုင်း catalogQueue() က ပြောင်းလဲမှုကို စုပြီး ၂.၅ စက္ကန့်နေမှ catalog ကို
+     in-place update လုပ်ပေးတယ် (catalog read အနည်းငယ် + ပြောင်းတဲ့ shard write ပဲ)။
+   • ၂၄ နာရီကြာရင် (Admin ဝင်တဲ့အခါ) အလိုလို full rebuild လုပ်ပြီး view/like count တွေပါ refresh လုပ်တယ်။
+   • Firebase Console ထဲက တိုက်ရိုက်ပြင်ရင်တော့ ဒီ catalog မသိပါ — 🔄 ခလုတ်နှိပ်ပါ (သို့) ၂၄ နာရီစောင့်ပါ။ */
+const CATALOG_SHARD_MAX_BYTES = 600 * 1024;          // Firestore doc limit 1 MiB — လုံခြုံအောင် ၆၀၀KB မကျော်စေ
+const CATALOG_REBUILD_EVERY_MS = 24 * 60 * 60 * 1000;
+const CATALOG_STRIP = ['videoPath', 'videoPathMobile', 'thumbPath', 'createdAt']; // Public site မလိုတဲ့ field တွေ
+const catalogEnc = new TextEncoder();
+let catalogOps = new Map();          // movieId -> 'upsert' | 'delete'
+let catalogTimer = null;
+let catalogRunning = Promise.resolve();
+let catalogLastMeta = null;
+function catalogSerial(fn){                          // sync/rebuild တွေကို တစ်ခုပြီးမှ တစ်ခု အစဉ်လိုက်သာ run
+  const p = catalogRunning.then(fn);
+  catalogRunning = p.catch(() => {});
+  return p;
+}
+// Tab ပိတ်လိုက်လို့ / sync မအောင်မြင်လို့ မရေးရသေးတဲ့ ပြောင်းလဲမှုတွေကို localStorage မှာမှတ်ထားပြီး နောက်တစ်ခါ Admin ဝင်ရင် ပြန်ရေးပေးတယ်
+const CATALOG_PENDING_KEY = 'catalogPendingOps_v1';
+let catalogInflight = new Map();                     // ယခု sync လုပ်နေဆဲ ops (tab ပိတ်ရင် မပျောက်အောင် pending ထဲ ထည့်မှတ်)
+function catalogSavePending(){
+  try{
+    const all = new Map([...catalogInflight, ...catalogOps]);
+    if(all.size) localStorage.setItem(CATALOG_PENDING_KEY, JSON.stringify([...all.entries()]));
+    else localStorage.removeItem(CATALOG_PENDING_KEY);
+  }catch(e){}
+}
+function catalogLoadPending(){
+  try{ const a = JSON.parse(localStorage.getItem(CATALOG_PENDING_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+
+function catalogEntry(id, data){
+  const o = { id };
+  Object.keys(data).forEach(k => { if(!CATALOG_STRIP.includes(k) && data[k] !== undefined) o[k] = data[k]; });
+  o.createdAtMs = data.createdAt && data.createdAt.toMillis ? data.createdAt.toMillis() : 0;
+  return o;
+}
+function catalogBytes(items){ return catalogEnc.encode(JSON.stringify(items)).length; }
+function catalogPack(entries){                       // newest first, shard တစ်ခုလျှင် MAX bytes မကျော်
+  const sorted = entries.slice().sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+  const shards = []; let cur = [], bytes = 2;
+  sorted.forEach(e => {
+    const b = catalogEnc.encode(JSON.stringify(e)).length + 1;
+    if(cur.length && bytes + b > CATALOG_SHARD_MAX_BYTES){ shards.push(cur); cur = []; bytes = 2; }
+    cur.push(e); bytes += b;
+  });
+  if(cur.length || !shards.length) shards.push(cur);
+  return shards;
+}
+async function catalogRead(){                        // null = catalog မရှိသေး/မပြည့်စုံ
+  const snap = await db.collection('catalog').get();
+  let meta = null; const raw = {};
+  snap.docs.forEach(d => { if(d.id === 'meta') meta = d.data(); else raw[d.id] = d.data(); });
+  if(!meta || !(meta.shards >= 1)) return null;
+  const shards = [];
+  for(let i = 0; i < meta.shards; i++){
+    const sd = raw['s' + i];
+    if(!sd || typeof sd.data !== 'string') return null;
+    let items; try{ items = JSON.parse(sd.data); }catch(e){ return null; }
+    if(!Array.isArray(items)) return null;
+    shards.push({ items, data: sd.data });
+  }
+  return { meta, shards };
+}
+async function catalogCommit(shardItems, prev, rebuilt){
+  const now = Date.now();
+  const batch = db.batch();
+  shardItems.forEach((items, i) => {
+    const data = JSON.stringify(items);
+    if(prev && prev.shards[i] && prev.shards[i].data === data) return;   // မပြောင်းတဲ့ shard ကို ပြန်မရေး
+    batch.set(db.collection('catalog').doc('s' + i), { v: now, i, n: items.length, data });
+  });
+  const prevCount = prev ? prev.meta.shards : 0;
+  for(let i = shardItems.length; i < prevCount; i++) batch.delete(db.collection('catalog').doc('s' + i));
+  const total = shardItems.reduce((n, a) => n + a.length, 0);
+  const meta = {
+    v: now, shards: shardItems.length, count: total, updatedAt: now,
+    rebuiltAt: rebuilt ? now : ((prev && prev.meta.rebuiltAt) || now)
+  };
+  batch.set(db.collection('catalog').doc('meta'), meta);
+  await batch.commit();
+  catalogLastMeta = meta;
+  return meta;
+}
+async function catalogRebuild(){                     // movies အားလုံးကို ပြန်ဖတ်ပြီး အသစ်ပြန်ထုပ်
+  const snap = await db.collection('movies').get();
+  const entries = snap.docs.map(d => catalogEntry(d.id, d.data()));
+  let prev = null;
+  try{ prev = await catalogRead(); }catch(e){ /* မရှိရင်/မပြည့်စုံရင် prev မလို */ }
+  if(!prev){
+    // prev ဖတ်မရရင်တောင် အရင် shard အရေအတွက်ကိုသိမှ ပိုနေတာတွေ ဖျက်လို့ရမယ် — meta ပဲဖတ်ကြည့်
+    try{
+      const m = await db.collection('catalog').doc('meta').get();
+      if(m.exists) prev = { meta: m.data(), shards: [] };
+    }catch(e){}
+  }
+  return catalogCommit(catalogPack(entries), prev, true);
+}
+async function catalogApply(ops){                    // ops: Map id -> 'upsert'|'delete'
+  const cat = await catalogRead();
+  if(!cat) return catalogRebuild();                  // catalog မရှိသေးရင် အကုန်တည်ဆောက်
+  // upsert ဖြစ်မယ့် doc တွေကို အသစ်ပြန်ဖတ် (serverTimestamp စတာတွေ အပြည့်အစုံ ရအောင်)
+  const upIds = [...ops.entries()].filter(([, t]) => t === 'upsert').map(([id]) => id);
+  const docs = await Promise.all(upIds.map(id => db.collection('movies').doc(id).get()));
+  const fresh = new Map(); const gone = new Set([...ops.entries()].filter(([, t]) => t === 'delete').map(([id]) => id));
+  docs.forEach(d => { if(d.exists) fresh.set(d.id, catalogEntry(d.id, d.data())); else gone.add(d.id); });
+
+  const shards = cat.shards.map(s => s.items.slice());
+  const where = new Map(); shards.forEach((arr, i) => arr.forEach((e, j) => where.set(e.id, i)));
+  gone.forEach(id => {
+    if(!where.has(id)) return;
+    const arr = shards[where.get(id)]; const j = arr.findIndex(e => e.id === id); if(j >= 0) arr.splice(j, 1);
+  });
+  fresh.forEach((entry, id) => {
+    if(where.has(id)){ const arr = shards[where.get(id)]; const j = arr.findIndex(e => e.id === id); if(j >= 0){ arr[j] = entry; return; } }
+    shards[shards.length - 1].push(entry);           // အသစ်ကို နောက်ဆုံး shard ထဲ
+  });
+  const overflow = shards.some(a => catalogBytes(a) > CATALOG_SHARD_MAX_BYTES);
+  const emptyMiddle = shards.length > 1 && shards.some(a => a.length === 0);
+  const final = (overflow || emptyMiddle) ? catalogPack([].concat(...shards)) : shards;
+  return catalogCommit(final, cat, false);
+}
+
+function catalogSetStatus(text, color){
+  const el = document.getElementById('catalogStatus');
+  if(!el) return;
+  el.textContent = text; el.style.color = color || 'var(--ink-dim)';
+}
+function catalogAgo(ms){
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if(m < 1) return 'ခုလေးတင်'; if(m < 60) return m + ' မိနစ်က';
+  const h = Math.round(m / 60); return h < 48 ? h + ' နာရီက' : Math.round(h / 24) + ' ရက်က';
+}
+function catalogShowMeta(meta){
+  if(!meta){ catalogSetStatus('Catalog မရှိသေးပါ — 🔄 နှိပ်ပြီး ပထမဆုံး တည်ဆောက်ပါ', 'var(--gold)'); return; }
+  catalogSetStatus(`✓ ${meta.count} ကား · shard ${meta.shards} ခု · full rebuild ${catalogAgo(meta.rebuiltAt || meta.updatedAt)}`, '#3ecf8e');
+}
+function catalogQueue(id, type){                     // movie save/delete ပြီးတိုင်း ခေါ်
+  catalogOps.set(id, type);
+  catalogSavePending();
+  catalogSetStatus('Catalog ပြောင်းလဲမှု စောင့်နေသည်...', 'var(--ink-dim)');
+  clearTimeout(catalogTimer);
+  catalogTimer = setTimeout(catalogFlush, 2500);
+}
+function catalogFlush(){
+  catalogTimer = null;
+  const ops = catalogOps; catalogOps = new Map();
+  if(!ops.size) return catalogRunning;
+  catalogInflight = new Map([...catalogInflight, ...ops]);
+  return catalogSerial(async () => {
+    catalogSetStatus('Catalog sync လုပ်နေသည်...', 'var(--ink-dim)');
+    try{
+      catalogShowMeta(await catalogApply(ops));
+      ops.forEach((t, id) => { if(catalogInflight.get(id) === t) catalogInflight.delete(id); });
+      catalogSavePending();
+    }catch(err){
+      console.error('[catalog] sync failed', err);
+      ops.forEach((t, id) => { if(!catalogOps.has(id)) catalogOps.set(id, t); });  // နောက်တစ်ခါ ပြန်ကြိုးစားနိုင်အောင် ပြန်ထည့်
+      ops.forEach((t, id) => { if(catalogInflight.get(id) === t) catalogInflight.delete(id); });
+      catalogSavePending();
+      catalogSetStatus('⚠ Catalog sync မအောင်မြင်ပါ (' + (err.message || err) + ') — 🔄 ကို နှိပ်ပါ', 'var(--danger)');
+      showToast('Catalog sync မအောင်မြင်ပါ — 🔄 Catalog ပြန်တည်ဆောက်မည် ကိုနှိပ်ပါ');
+    }
+  });
+}
+async function catalogAutoCheck(){                   // Admin ဝင်တိုင်း — မရှိ/၂၄နာရီကျော်ရင် full rebuild
+  try{
+    const m = await db.collection('catalog').doc('meta').get();
+    const meta = m.exists ? m.data() : null;
+    if(meta && Date.now() - (meta.rebuiltAt || 0) < CATALOG_REBUILD_EVERY_MS){
+      catalogLastMeta = meta; catalogShowMeta(meta);
+      const pend = catalogLoadPending();                // အရင်တစ်ခေါက် မရေးလိုက်ရတဲ့ ပြောင်းလဲမှုရှိရင် ယခု ပြန်ရေး
+      if(pend.length){ pend.forEach(([id, t]) => { if(!catalogOps.has(id)) catalogOps.set(id, t); }); catalogFlush(); }
+      return;
+    }
+    catalogSetStatus('Catalog ကို တည်ဆောက်နေသည်...', 'var(--ink-dim)');
+    catalogShowMeta(await catalogSerial(catalogRebuild));
+    try{ localStorage.removeItem(CATALOG_PENDING_KEY); }catch(e){}   // full rebuild က ကျန်နေတဲ့ ပြောင်းလဲမှုအားလုံးကို ဖုံးပြီးသား
+  }catch(err){
+    console.error('[catalog] auto check failed', err);
+    catalogSetStatus('⚠ Catalog စစ်၍မရပါ — Firestore Rules ကို Publish လုပ်ထားလား စစ်ပါ (' + (err.message || err) + ')', 'var(--danger)');
+  }
+}
+document.getElementById('catalogRebuildBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('catalogRebuildBtn');
+  btn.disabled = true; clearTimeout(catalogTimer); catalogOps = new Map(); catalogInflight = new Map();
+  catalogSetStatus('Catalog ကို အစကနေ ပြန်တည်ဆောက်နေသည်...', 'var(--ink-dim)');
+  try{
+    catalogShowMeta(await catalogSerial(catalogRebuild));
+    try{ localStorage.removeItem(CATALOG_PENDING_KEY); }catch(e){}
+    showToast('Catalog ပြန်တည်ဆောက်ပြီးပါပြီ', 'ok');
+  }
+  catch(err){ catalogSetStatus('⚠ မအောင်မြင်ပါ (' + (err.message || err) + ')', 'var(--danger)'); showToast('Catalog တည်ဆောက်၍ မရပါ — ' + (err.message || err)); }
+  finally{ btn.disabled = false; }
+});
+
 /* ---------- List + edit + delete (paginated) ---------- */
 const ADMIN_PAGE_SIZE = 40;
 let adminMoviesLimit = ADMIN_PAGE_SIZE;
@@ -1020,6 +1232,7 @@ function renderAdminMoviesList(){
         if(videomobile) await deleteFromBunny(videomobile).catch(()=>{});
         if(thumb) await deleteFromBunny(thumb).catch(()=>{});
         await db.collection('movies').doc(id).delete();
+        catalogQueue(id, 'delete');
         if(editingId === id){ resetContentForm(); exitEditMode(); }
         showToast('ဇာတ်ကား ဖျက်ပြီးပါပြီ', 'ok');
       }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
