@@ -187,6 +187,7 @@
     <button class="dash-tab" id="tabReports">Reports <span id="reportsBadge"></span></button>
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
+    <button class="dash-tab" id="tabAnnounce">Announcement</button>
     <button class="dash-tab" id="tabVideoAds">Video Ads</button>
     <button class="dash-tab" id="tabShop">Shop</button>
   </div>
@@ -414,6 +415,27 @@
     </div>
   </div>
 
+  <div class="panel" id="panelAnnounce">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Announcement Ticker</div>
+    <p class="helper" style="margin-bottom:18px;">Main site ရဲ့ header အောက်မှာ အနီရောင် sticky bar အနေနဲ့ ပြေးနေမယ့် စာတန်း — စာရိုက်ပြီး Save လုပ်တာနဲ့ user တွေဆီ refresh မလုပ်ဘဲ အလိုလျောက် ပေါ်လာမယ်။ စာရှည်ရင် ဘေးတိုက်ပြေးမယ်၊ စာတိုရင် ငြိမ်ငြိမ်ပေါ်မယ်။</p>
+
+    <div class="card-form">
+      <div class="field"><label>ကြေညာစာ *</label>
+        <textarea id="fAnnounceText" rows="3" placeholder="ဥပမာ - ဒီည ၈ နာရီ ဇာတ်ကားအသစ် တင်မယ်"></textarea></div>
+
+      <div class="field"><label>Ticker ပြမလား</label>
+        <select id="fAnnounceEnabled"><option value="yes">ပြရန် (Enabled)</option><option value="no">မပြရန် (Disabled)</option></select>
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" id="announceSaveBtn" style="flex:1;">💾 ကြေညာစာ သိမ်းမည်</button>
+        <button class="btn btn-ghost" id="announceRemoveBtn" style="flex:1;">🗑️ ကြေညာစာ ဖျက်မည်</button>
+      </div>
+      <div class="status status-ok" id="announceStatusOk" style="margin-top:14px;">✓ ကြေညာစာ သိမ်းဆည်းပြီးပါပြီ</div>
+      <div class="status status-err" id="announceStatusErr" style="margin-top:14px;"></div>
+    </div>
+  </div>
+
   <div class="panel" id="panelVideoAds">
     <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Video Ads</div>
     <p class="helper" style="margin-bottom:18px;">Short ads video များ — "Top Banner" ကို ရွေးရင် Home page Hero အောက်မှာ auto-play loop ဖြစ်ပြီးပြမယ်၊ "Bottom Popup" ကို ရွေးရင် screen အောက်ခြေမှာ sticky bar အနေနဲ့ ပြမယ် (X နှိပ်ပိတ်လို့ရ)။ Ad list ထဲ တစ်ခုထက်ပို ထည့်ထားရင် user visit တိုင်း random ရွေးပြီးပြပါမယ် — click လုပ်ရင် Link ဆီ တန်းရောက်သွားပါမယ်</p>
@@ -561,6 +583,7 @@ document.getElementById('tabPromo').addEventListener('click', () => switchDashTa
 document.getElementById('tabReports').addEventListener('click', () => switchDashTab('reports'));
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
+document.getElementById('tabAnnounce').addEventListener('click', () => switchDashTab('announce'));
 document.getElementById('tabVideoAds').addEventListener('click', () => switchDashTab('videoads'));
 document.getElementById('tabShop').addEventListener('click', () => switchDashTab('shop'));
 function switchDashTab(tab){
@@ -570,6 +593,7 @@ function switchDashTab(tab){
   document.getElementById('tabReports').classList.toggle('active', tab==='reports');
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
+  document.getElementById('tabAnnounce').classList.toggle('active', tab==='announce');
   document.getElementById('tabVideoAds').classList.toggle('active', tab==='videoads');
   document.getElementById('tabShop').classList.toggle('active', tab==='shop');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
@@ -578,6 +602,7 @@ function switchDashTab(tab){
   document.getElementById('panelReports').classList.toggle('open', tab==='reports');
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
   document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
+  document.getElementById('panelAnnounce').classList.toggle('open', tab==='announce');
   document.getElementById('panelVideoAds').classList.toggle('open', tab==='videoads');
   document.getElementById('panelShop').classList.toggle('open', tab==='shop');
 }
@@ -622,6 +647,7 @@ auth.onAuthStateChanged(user => {
     listenReports();
     listenAdultPins();
     listenBanner();
+    listenAnnouncement();
     listenVideoAds();
     listenShop();
     listenUserStats();
@@ -1727,6 +1753,62 @@ document.getElementById('bannerRemoveBtn').addEventListener('click', async () =>
     document.getElementById('fBannerLink').value = '';
     document.getElementById('fBannerEnabled').value = 'yes';
     showToast('Banner ဖျက်ပြီးပါပြီ', 'ok');
+  }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+});
+
+/* ---------- Announcement Ticker ---------- */
+/* Main site (index.html) က settings/announcement doc ကို onSnapshot နဲ့
+   နားထောင်ထားတယ် — ဒီကနေ Save လုပ်တာနဲ့ user တွေဆီ refresh မလုပ်ဘဲ ပေါ်တယ်.
+   Banner panel ပုံစံအတိုင်းပဲ: settings/{id} ကို admin ပဲ write လုပ်လို့ရ. */
+let currentAnnounceData = null;
+
+function listenAnnouncement(){
+  db.collection('settings').doc('announcement').onSnapshot(doc => {
+    currentAnnounceData = doc.exists ? doc.data() : null;
+    // စာရိုက်နေတုန်း snapshot ပြန်လာပြီး ရိုက်နေတဲ့စာ ပျက်မသွားအောင် focus စစ်တယ်
+    if(document.activeElement !== document.getElementById('fAnnounceText')){
+      document.getElementById('fAnnounceText').value = currentAnnounceData ? (currentAnnounceData.text || '') : '';
+    }
+    document.getElementById('fAnnounceEnabled').value = (currentAnnounceData && currentAnnounceData.enabled === false) ? 'no' : 'yes';
+  });
+}
+
+document.getElementById('announceSaveBtn').addEventListener('click', async () => {
+  const text = document.getElementById('fAnnounceText').value.trim();
+  const enabled = document.getElementById('fAnnounceEnabled').value === 'yes';
+  const okEl = document.getElementById('announceStatusOk');
+  const errEl = document.getElementById('announceStatusErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+  if(!text){
+    errEl.textContent = 'ကြေညာစာ ရိုက်ထည့်ပါ — ဖျက်ချင်ရင် ဖျက်မည် နှိပ်ပါ';
+    errEl.classList.add('show');
+    return;
+  }
+  const saveBtn = document.getElementById('announceSaveBtn');
+  saveBtn.disabled = true; saveBtn.textContent = 'သိမ်းနေသည်...';
+  try{
+    await db.collection('settings').doc('announcement').set({
+      text, enabled,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    okEl.classList.add('show');
+    setTimeout(() => okEl.classList.remove('show'), 3000);
+  }catch(err){
+    errEl.textContent = 'ကြေညာစာ သိမ်း၍ မရပါ — ' + err.message;
+    errEl.classList.add('show');
+  }finally{
+    saveBtn.disabled = false; saveBtn.textContent = '💾 ကြေညာစာ သိမ်းမည်';
+  }
+});
+
+document.getElementById('announceRemoveBtn').addEventListener('click', async () => {
+  if(!currentAnnounceData){ showToast('ကြေညာစာ မရှိသေးပါ'); return; }
+  if(!confirm('ကြေညာစာကို ဖျက်မှာ သေချာပါသလား?')) return;
+  try{
+    await db.collection('settings').doc('announcement').delete();
+    document.getElementById('fAnnounceText').value = '';
+    document.getElementById('fAnnounceEnabled').value = 'yes';
+    showToast('ကြေညာစာ ဖျက်ပြီးပါပြီ', 'ok');
   }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
 });
 
