@@ -274,7 +274,9 @@
       <div class="field"><label>Premium content (ငွေပေးမှသာ ကြည့်ခွင့်)</label>
         <select id="fPremium"><option value="no">Free — လူတိုင်း ကြည့်ခွင့်ရ</option><option value="yes">Premium — subscriber သာ ကြည့်ခွင့်ရ</option></select>
       </div>
-      <div></div>
+      <div class="field" id="originFieldWrap" style="display:none;"><label>Origin — 18+ tab ခွဲဖို့ (18+ အတွက်သာ)</label>
+        <select id="fOrigin"><option value="international">🌍 International</option><option value="myanmar">🇲🇲 Myanmar</option><option value="japan">🇯🇵 Japan</option></select>
+      </div>
     </div>
 
     <div class="field"><label>Genre (တစ်ခုထက်ပို ရွေးလို့ရ)</label>
@@ -282,6 +284,12 @@
     </div>
 
     <div class="field"><label>အကျဉ်းချုပ်</label><textarea id="fDesc" rows="3"></textarea></div>
+
+    <div class="grid-2">
+      <div class="field"><label>Source Site (တခြား site နာမည် — optional)</label><input type="text" id="fSourceSite" placeholder="ဥပမာ - Site A"></div>
+      <div class="field"><label>Source URL (အဲဒီ site ရဲ့ link — optional)</label><input type="text" id="fSourceUrl" placeholder="https://..."></div>
+    </div>
+    <p class="helper" style="margin-bottom:14px;">ဒီ ၂ ခု ဖြည့်ထားရင် Maxflix မှာ movie ဖွင့်တဲ့အခါ "[Site] မှာ ကြည့်မည်" ခလုတ် ပေါ်လာပြီး အဲဒီ site ကို tab အသစ်နဲ့ ဖွင့်ပေးမယ် — video ကို Maxflix မှာ host လုပ်တာ မဟုတ်ဘူး။ Video မတင်ဘဲ Source URL ပဲ ဖြည့်ထားလို့လည်း ရတယ်။</p>
 
     <button class="btn btn-primary" id="addBtn">➕ Upload &amp; ထည့်မည်</button>
   </div>
@@ -612,6 +620,8 @@ function toggleDramaFields(){
   const isDrama = document.getElementById('fCategory').value === 'drama';
   document.getElementById('dramaFields').style.display = isDrama ? 'grid' : 'none';
   document.getElementById('dramaHelper').style.display = isDrama ? 'block' : 'none';
+  const isAdult = document.getElementById('fCategory').value === 'adult';
+  document.getElementById('originFieldWrap').style.display = isAdult ? 'block' : 'none';
 }
 document.getElementById('fCategory').addEventListener('change', () => {
   toggleDramaFields();
@@ -854,15 +864,18 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   const duration = document.getElementById('fDuration').value.trim();
   const featured = document.getElementById('fFeatured').value === 'yes';
   const isPremium = document.getElementById('fPremium').value === 'yes';
+  const origin = document.getElementById('fCategory').value === 'adult' ? document.getElementById('fOrigin').value : null;
   const desc = document.getElementById('fDesc').value.trim();
+  const sourceSite = document.getElementById('fSourceSite').value.trim();
+  const sourceUrl = document.getElementById('fSourceUrl').value.trim();
   const statusErr = document.getElementById('statusErr');
   const statusOk = document.getElementById('statusOk');
   statusErr.classList.remove('show'); statusOk.classList.remove('show');
 
   const manualVideoUrl = document.getElementById('fVideoManualUrl').value.trim();
-  const needsNewVideo = !editingId && !videoFile && !manualVideoUrl; // brand-new movies must have a video; edits can keep the existing one
+  const needsNewVideo = !editingId && !videoFile && !manualVideoUrl && !sourceUrl; // brand-new movies need a video, a manual URL, or a Source URL (link-out-only)
   if(!title || needsNewVideo){
-    statusErr.textContent = 'အမည်နှင့် Video File ကို ဖြည့်ပါ';
+    statusErr.textContent = 'အမည်နှင့် Video File (သို့) Source URL ကို ဖြည့်ပါ';
     statusErr.classList.add('show');
     return;
   }
@@ -911,7 +924,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
 
     const genres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
     const payload = {
-      title, category, duration, featured, desc, isPremium, genres,
+      title, category, duration, featured, desc, isPremium, origin, genres, sourceSite: sourceSite || null, sourceUrl: sourceUrl || null,
       seriesName: category === 'drama' ? seriesName : null,
       episodeNumber: category === 'drama' ? episodeNumber : null,
       videoUrl: videoResult ? videoResult.url : null, videoPath: videoResult ? videoResult.path : null,
@@ -946,7 +959,7 @@ document.getElementById('addBtn').addEventListener('click', async () => {
 });
 
 function resetContentForm(){
-  ['fTitle','fDuration','fDesc','fSeriesName','fEpisodeNumber'].forEach(id2 => document.getElementById(id2).value = '');
+  ['fTitle','fDuration','fDesc','fSeriesName','fEpisodeNumber','fSourceSite','fSourceUrl'].forEach(id2 => document.getElementById(id2).value = '');
   document.getElementById('fFeatured').value = 'no';
   document.getElementById('fPremium').value = 'no';
   document.getElementById('fCategory').value = 'original';
@@ -974,7 +987,10 @@ function enterEditMode(id, m){
   document.getElementById('fDuration').value = m.duration || '';
   document.getElementById('fFeatured').value = m.featured ? 'yes' : 'no';
   document.getElementById('fPremium').value = m.isPremium ? 'yes' : 'no';
+  document.getElementById('fOrigin').value = m.origin || 'international';
   document.getElementById('fDesc').value = m.desc || '';
+  document.getElementById('fSourceSite').value = m.sourceSite || '';
+  document.getElementById('fSourceUrl').value = m.sourceUrl || '';
   document.querySelectorAll('.genre-cb').forEach(cb => cb.checked = (m.genres || []).includes(cb.value));
   videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false; detectedAspectRatio = null; durationFieldIsAuto = false;
   document.getElementById('videoFileName').textContent = m.videoUrl ? '✓ လက်ရှိ video ကို ဆက်သုံးမည် (မပြောင်းလိုလျှင် ဒီနေရာကို ချန်ထားပါ)' : '';
@@ -1229,11 +1245,12 @@ function renderAdminMoviesList(){
 
   list.innerHTML = filtered.map(({ id, m }) => {
     const seriesTag = m.category === 'drama' && m.seriesName ? ` · ${esc(m.seriesName)}${m.episodeNumber ? ' Ep '+m.episodeNumber : ''}` : '';
+    const originLabel = m.category === 'adult' ? ' · ' + (m.origin === 'myanmar' ? '🇲🇲 Myanmar' : m.origin === 'japan' ? '🇯🇵 Japan' : '🌍 International') : '';
     return `<div class="list-item">
       <img class="list-thumb" loading="lazy" src="${m.thumbUrl ? esc(m.thumbUrl) : PLACEHOLDER_THUMB}" onerror="this.src='${PLACEHOLDER_THUMB}'">
       <div class="list-info">
-        <div class="t">${esc(m.title)}${m.featured ? ' ⭐' : ''}${m.isPremium ? ' <span style="color:var(--gold);">★ Premium</span>' : ''}</div>
-        <div class="m">${CATEGORY_LABEL[m.category] || ''}${seriesTag} ${m.duration ? '• '+esc(m.duration) : ''}</div>
+        <div class="t">${esc(m.title)}${m.featured ? ' ⭐' : ''}${m.isPremium ? ' <span style="color:var(--gold);">★ Premium</span>' : ''}${m.sourceUrl ? ' <span style="color:var(--gold);">🌐 ' + esc(m.sourceSite || 'Source') + '</span>' : ''}</div>
+        <div class="m">${CATEGORY_LABEL[m.category] || ''}${seriesTag}${originLabel} ${m.duration ? '• '+esc(m.duration) : ''}</div>
       </div>
       <div class="list-actions">
         <button class="edit-btn" data-id="${id}">ပြင်မည်</button>
