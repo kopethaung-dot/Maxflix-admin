@@ -90,6 +90,7 @@
   .user-stat-box .l{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
   .user-stat-box.premium .n{color:var(--gold);}
   .panel{display:none;}
+  @keyframes annPrev{from{transform:translateX(0);}to{transform:translateX(-100%);}}
   .panel.open{display:block;}
 
   .req-item{display:flex;gap:14px;align-items:center;padding:14px;border:1px solid var(--line);
@@ -187,9 +188,9 @@
     <button class="dash-tab" id="tabReports">Reports <span id="reportsBadge"></span></button>
     <button class="dash-tab" id="tabAdultPin">18+ PIN</button>
     <button class="dash-tab" id="tabBanner">Banner</button>
-    <button class="dash-tab" id="tabAnnounce">Announcement</button>
     <button class="dash-tab" id="tabVideoAds">Video Ads</button>
     <button class="dash-tab" id="tabShop">Shop</button>
+    <button class="dash-tab" id="tabAnnounce">📢 စာတန်း</button>
   </div>
 
   <div class="user-stat-row" id="userStatRow">
@@ -224,6 +225,15 @@
       </div>
     </div>
 
+    <div class="field" id="regionField" style="display:none;max-width:320px;margin-bottom:14px;"><label>18+ နိုင်ငံ/ဒေသ *</label>
+      <select id="fRegion">
+        <option value="">— ရွေးပါ —</option>
+        <option value="myanmar">Myanmar</option>
+        <option value="japan">Japan</option>
+        <option value="china">China</option>
+        <option value="international">International</option>
+      </select>
+    </div>
     <div class="grid-2" id="dramaFields" style="display:none;">
       <div class="field"><label>Series/Collection အမည် *</label><input type="text" id="fSeriesName" placeholder="ဥပမာ - နွေဦးရောက်ချိန် (drama name)"></div>
       <div class="field"><label>Episode အမှတ်</label><input type="number" id="fEpisodeNumber" min="1" placeholder="1, 2, 3..."></div>
@@ -274,9 +284,7 @@
       <div class="field"><label>Premium content (ငွေပေးမှသာ ကြည့်ခွင့်)</label>
         <select id="fPremium"><option value="no">Free — လူတိုင်း ကြည့်ခွင့်ရ</option><option value="yes">Premium — subscriber သာ ကြည့်ခွင့်ရ</option></select>
       </div>
-      <div class="field" id="originFieldWrap" style="display:none;"><label>Origin — 18+ tab ခွဲဖို့ (18+ အတွက်သာ)</label>
-        <select id="fOrigin"><option value="international">🌍 International</option><option value="myanmar">🇲🇲 Myanmar</option><option value="japan">🇯🇵 Japan</option></select>
-      </div>
+      <div></div>
     </div>
 
     <div class="field"><label>Genre (တစ်ခုထက်ပို ရွေးလို့ရ)</label>
@@ -284,12 +292,6 @@
     </div>
 
     <div class="field"><label>အကျဉ်းချုပ်</label><textarea id="fDesc" rows="3"></textarea></div>
-
-    <div class="grid-2">
-      <div class="field"><label>Source Site (တခြား site နာမည် — optional)</label><input type="text" id="fSourceSite" placeholder="ဥပမာ - Site A"></div>
-      <div class="field"><label>Source URL (အဲဒီ site ရဲ့ link — optional)</label><input type="text" id="fSourceUrl" placeholder="https://..."></div>
-    </div>
-    <p class="helper" style="margin-bottom:14px;">ဒီ ၂ ခု ဖြည့်ထားရင် Maxflix မှာ movie ဖွင့်တဲ့အခါ "[Site] မှာ ကြည့်မည်" ခလုတ် ပေါ်လာပြီး အဲဒီ site ကို tab အသစ်နဲ့ ဖွင့်ပေးမယ် — video ကို Maxflix မှာ host လုပ်တာ မဟုတ်ဘူး။ Video မတင်ဘဲ Source URL ပဲ ဖြည့်ထားလို့လည်း ရတယ်။</p>
 
     <button class="btn btn-primary" id="addBtn">➕ Upload &amp; ထည့်မည်</button>
   </div>
@@ -386,6 +388,39 @@
     <div id="adultPinList"></div>
   </div>
 
+  <div class="panel" id="panelAnnounce">
+    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">📢 စာတန်းပြေး (Announcement)</div>
+    <p class="helper" style="margin-bottom:18px;">Public site ရဲ့ အပေါ်ဆုံး (Header အောက်) မှာ ဘယ်ကနေညာ ပြေးပြမယ့် စာတန်း။ <b>စာကြောင်းတစ်ကြောင်း = သတင်းတစ်ခု</b> (များများရေးရင် ✦ ခံပြီး ဆက်တိုက်ပြေးမယ်)။ သိမ်းလိုက်တာနဲ့ site ဖွင့်ထားသူတွေဆီ ချက်ချင်းပေါ်မယ် — စာပြင်ရင် အရင်က ✕ နှိပ်ပိတ်ထားသူတွေဆီလည်း ပြန်ပေါ်မယ်။</p>
+
+    <div class="card-form">
+      <div class="field"><label>စာတန်း * <span id="annCount" style="color:var(--ink-faint);font-weight:400;">(0 / 600)</span></label>
+        <textarea id="fAnnText" rows="4" maxlength="600" placeholder="ဥပမာ&#10;🎉 Premium ကို ဒီလ အထူးဈေးနဲ့ ရနေပါပြီ&#10;📺 Short Drama အသစ်တွေ နေ့တိုင်း တင်နေပါတယ်"></textarea>
+      </div>
+
+      <div class="field"><label>ပြေးနှုန်း</label>
+        <select id="fAnnSpeed"><option value="slow">နှေး</option><option value="normal" selected>ပုံမှန်</option><option value="fast">မြန်</option></select>
+      </div>
+
+      <div class="field"><label>စာတန်း ပြမလား</label>
+        <select id="fAnnEnabled"><option value="yes">ပြရန် (Enabled)</option><option value="no">မပြရန် (Disabled)</option></select>
+      </div>
+
+      <div class="field"><label>Preview (Public site မှာ ပေါ်မယ့်ပုံစံ)</label>
+        <div id="annPreview" style="overflow:hidden;white-space:nowrap;background:linear-gradient(90deg,rgba(229,9,20,.24),rgba(212,166,42,.22));border:1px solid var(--line);border-radius:6px;padding:8px 12px;font-size:13px;">
+          <span id="annPreviewText" style="display:inline-block;padding-left:100%;animation:annPrev 14s linear infinite;"></span>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary" id="annSaveBtn" style="flex:1;">💾 စာတန်း သိမ်းမည်</button>
+        <button class="btn btn-ghost" id="annRemoveBtn" style="flex:1;">🗑️ စာတန်း ဖျက်မည်</button>
+      </div>
+      <div id="annState" style="margin-top:12px;font-size:12px;color:var(--ink-dim);"></div>
+      <div class="status status-ok" id="annStatusOk" style="margin-top:14px;">✓ စာတန်း သိမ်းဆည်းပြီးပါပြီ — Site မှာ ချက်ချင်းပေါ်ပါမယ်</div>
+      <div class="status status-err" id="annStatusErr" style="margin-top:14px;"></div>
+    </div>
+  </div>
+
   <div class="panel" id="panelBanner">
     <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Promo Banner</div>
     <p class="helper" style="margin-bottom:18px;">Home page ထဲ Hero အောက်၊ ဇာတ်ကား row များ အပေါ်မှာ ပြမည့် ပုံ Banner — click လုပ်ရင် link ကို သွားစေနိုင်ပါတယ်</p>
@@ -420,27 +455,6 @@
       </div>
       <div class="status status-ok" id="bannerStatusOk" style="margin-top:14px;">✓ Banner သိမ်းဆည်းပြီးပါပြီ</div>
       <div class="status status-err" id="bannerStatusErr" style="margin-top:14px;"></div>
-    </div>
-  </div>
-
-  <div class="panel" id="panelAnnounce">
-    <div class="dash-title" style="font-size:22px;margin-bottom:6px;">Announcement Ticker</div>
-    <p class="helper" style="margin-bottom:18px;">Main site ရဲ့ header အောက်မှာ အနီရောင် sticky bar အနေနဲ့ ပြေးနေမယ့် စာတန်း — စာရိုက်ပြီး Save လုပ်တာနဲ့ user တွေဆီ refresh မလုပ်ဘဲ အလိုလျောက် ပေါ်လာမယ်။ စာရှည်ရင် ဘေးတိုက်ပြေးမယ်၊ စာတိုရင် ငြိမ်ငြိမ်ပေါ်မယ်။</p>
-
-    <div class="card-form">
-      <div class="field"><label>ကြေညာစာ *</label>
-        <textarea id="fAnnounceText" rows="3" placeholder="ဥပမာ - ဒီည ၈ နာရီ ဇာတ်ကားအသစ် တင်မယ်"></textarea></div>
-
-      <div class="field"><label>Ticker ပြမလား</label>
-        <select id="fAnnounceEnabled"><option value="yes">ပြရန် (Enabled)</option><option value="no">မပြရန် (Disabled)</option></select>
-      </div>
-
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" id="announceSaveBtn" style="flex:1;">💾 ကြေညာစာ သိမ်းမည်</button>
-        <button class="btn btn-ghost" id="announceRemoveBtn" style="flex:1;">🗑️ ကြေညာစာ ဖျက်မည်</button>
-      </div>
-      <div class="status status-ok" id="announceStatusOk" style="margin-top:14px;">✓ ကြေညာစာ သိမ်းဆည်းပြီးပါပြီ</div>
-      <div class="status status-err" id="announceStatusErr" style="margin-top:14px;"></div>
     </div>
   </div>
 
@@ -555,6 +569,7 @@ const PLACEHOLDER_THUMB = "data:image/svg+xml;utf8," + encodeURIComponent(
   `<svg xmlns='http://www.w3.org/2000/svg' width='52' height='78'><rect width='52' height='78' fill='%23222'/></svg>`);
 function esc(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 const CATEGORY_LABEL = { original: 'Movies', drama: 'Short Drama', adult: '18+' };
+const REGION_LABEL = { myanmar: 'Myanmar', japan: 'Japan', china: 'China', international: 'International' };
 const GENRE_LIST = ['Action','Romance','Comedy','Thriller','Fantasy','Horror','Drama','Crime','Family'];
 document.getElementById('genreCheckboxes').innerHTML = GENRE_LIST.map(g =>
   `<label style="display:flex;align-items:center;gap:5px;background:var(--bg-2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;">
@@ -591,9 +606,9 @@ document.getElementById('tabPromo').addEventListener('click', () => switchDashTa
 document.getElementById('tabReports').addEventListener('click', () => switchDashTab('reports'));
 document.getElementById('tabAdultPin').addEventListener('click', () => switchDashTab('adultpin'));
 document.getElementById('tabBanner').addEventListener('click', () => switchDashTab('banner'));
-document.getElementById('tabAnnounce').addEventListener('click', () => switchDashTab('announce'));
 document.getElementById('tabVideoAds').addEventListener('click', () => switchDashTab('videoads'));
 document.getElementById('tabShop').addEventListener('click', () => switchDashTab('shop'));
+document.getElementById('tabAnnounce').addEventListener('click', () => switchDashTab('announce'));
 function switchDashTab(tab){
   document.getElementById('tabContent').classList.toggle('active', tab==='content');
   document.getElementById('tabPremium').classList.toggle('active', tab==='premium');
@@ -601,18 +616,18 @@ function switchDashTab(tab){
   document.getElementById('tabReports').classList.toggle('active', tab==='reports');
   document.getElementById('tabAdultPin').classList.toggle('active', tab==='adultpin');
   document.getElementById('tabBanner').classList.toggle('active', tab==='banner');
-  document.getElementById('tabAnnounce').classList.toggle('active', tab==='announce');
   document.getElementById('tabVideoAds').classList.toggle('active', tab==='videoads');
   document.getElementById('tabShop').classList.toggle('active', tab==='shop');
+  document.getElementById('tabAnnounce').classList.toggle('active', tab==='announce');
   document.getElementById('panelContent').classList.toggle('open', tab==='content');
   document.getElementById('panelPremium').classList.toggle('open', tab==='premium');
   document.getElementById('panelPromo').classList.toggle('open', tab==='promo');
   document.getElementById('panelReports').classList.toggle('open', tab==='reports');
   document.getElementById('panelAdultPin').classList.toggle('open', tab==='adultpin');
   document.getElementById('panelBanner').classList.toggle('open', tab==='banner');
-  document.getElementById('panelAnnounce').classList.toggle('open', tab==='announce');
   document.getElementById('panelVideoAds').classList.toggle('open', tab==='videoads');
   document.getElementById('panelShop').classList.toggle('open', tab==='shop');
+  document.getElementById('panelAnnounce').classList.toggle('open', tab==='announce');
 }
 
 /* ---------- Toggle Series/Episode fields for Short Drama ---------- */
@@ -620,8 +635,7 @@ function toggleDramaFields(){
   const isDrama = document.getElementById('fCategory').value === 'drama';
   document.getElementById('dramaFields').style.display = isDrama ? 'grid' : 'none';
   document.getElementById('dramaHelper').style.display = isDrama ? 'block' : 'none';
-  const isAdult = document.getElementById('fCategory').value === 'adult';
-  document.getElementById('originFieldWrap').style.display = isAdult ? 'block' : 'none';
+  document.getElementById('regionField').style.display = document.getElementById('fCategory').value === 'adult' ? 'block' : 'none';   // 18+ မှာပဲ ဒေသရွေးခိုင်း
 }
 document.getElementById('fCategory').addEventListener('change', () => {
   toggleDramaFields();
@@ -657,7 +671,7 @@ auth.onAuthStateChanged(user => {
     listenReports();
     listenAdultPins();
     listenBanner();
-    listenAnnouncement();
+    listenAnnounce();
     listenVideoAds();
     listenShop();
     listenUserStats();
@@ -864,18 +878,21 @@ document.getElementById('addBtn').addEventListener('click', async () => {
   const duration = document.getElementById('fDuration').value.trim();
   const featured = document.getElementById('fFeatured').value === 'yes';
   const isPremium = document.getElementById('fPremium').value === 'yes';
-  const origin = document.getElementById('fCategory').value === 'adult' ? document.getElementById('fOrigin').value : null;
+  const region = category === 'adult' ? document.getElementById('fRegion').value : '';
   const desc = document.getElementById('fDesc').value.trim();
-  const sourceSite = document.getElementById('fSourceSite').value.trim();
-  const sourceUrl = document.getElementById('fSourceUrl').value.trim();
   const statusErr = document.getElementById('statusErr');
   const statusOk = document.getElementById('statusOk');
   statusErr.classList.remove('show'); statusOk.classList.remove('show');
 
   const manualVideoUrl = document.getElementById('fVideoManualUrl').value.trim();
-  const needsNewVideo = !editingId && !videoFile && !manualVideoUrl && !sourceUrl; // brand-new movies need a video, a manual URL, or a Source URL (link-out-only)
+  const needsNewVideo = !editingId && !videoFile && !manualVideoUrl; // brand-new movies must have a video; edits can keep the existing one
   if(!title || needsNewVideo){
-    statusErr.textContent = 'အမည်နှင့် Video File (သို့) Source URL ကို ဖြည့်ပါ';
+    statusErr.textContent = 'အမည်နှင့် Video File ကို ဖြည့်ပါ';
+    statusErr.classList.add('show');
+    return;
+  }
+  if(category === 'adult' && !region){
+    statusErr.textContent = '18+ အတွက် နိုင်ငံ/ဒေသ (Myanmar / Japan / China / International) ရွေးပါ';
     statusErr.classList.add('show');
     return;
   }
@@ -924,7 +941,8 @@ document.getElementById('addBtn').addEventListener('click', async () => {
 
     const genres = Array.from(document.querySelectorAll('.genre-cb:checked')).map(cb => cb.value);
     const payload = {
-      title, category, duration, featured, desc, isPremium, origin, genres, sourceSite: sourceSite || null, sourceUrl: sourceUrl || null,
+      title, category, duration, featured, desc, isPremium, genres,
+      region: category === 'adult' ? region : null,
       seriesName: category === 'drama' ? seriesName : null,
       episodeNumber: category === 'drama' ? episodeNumber : null,
       videoUrl: videoResult ? videoResult.url : null, videoPath: videoResult ? videoResult.path : null,
@@ -959,10 +977,11 @@ document.getElementById('addBtn').addEventListener('click', async () => {
 });
 
 function resetContentForm(){
-  ['fTitle','fDuration','fDesc','fSeriesName','fEpisodeNumber','fSourceSite','fSourceUrl'].forEach(id2 => document.getElementById(id2).value = '');
+  ['fTitle','fDuration','fDesc','fSeriesName','fEpisodeNumber'].forEach(id2 => document.getElementById(id2).value = '');
   document.getElementById('fFeatured').value = 'no';
   document.getElementById('fPremium').value = 'no';
   document.getElementById('fCategory').value = 'original';
+  document.getElementById('fRegion').value = '';
   toggleDramaFields();
   document.getElementById('videoFileName').textContent = '';
   document.getElementById('videoMobileFileName').textContent = '';
@@ -981,16 +1000,14 @@ function enterEditMode(id, m){
   editingMovieData = m;
   document.getElementById('fTitle').value = m.title || '';
   document.getElementById('fCategory').value = m.category || 'original';
+  document.getElementById('fRegion').value = m.region || '';
   toggleDramaFields();
   document.getElementById('fSeriesName').value = m.seriesName || '';
   document.getElementById('fEpisodeNumber').value = m.episodeNumber || '';
   document.getElementById('fDuration').value = m.duration || '';
   document.getElementById('fFeatured').value = m.featured ? 'yes' : 'no';
   document.getElementById('fPremium').value = m.isPremium ? 'yes' : 'no';
-  document.getElementById('fOrigin').value = m.origin || 'international';
   document.getElementById('fDesc').value = m.desc || '';
-  document.getElementById('fSourceSite').value = m.sourceSite || '';
-  document.getElementById('fSourceUrl').value = m.sourceUrl || '';
   document.querySelectorAll('.genre-cb').forEach(cb => cb.checked = (m.genres || []).includes(cb.value));
   videoFile = null; thumbFile = null; videoMobileFile = null; thumbFileIsAuto = false; detectedAspectRatio = null; durationFieldIsAuto = false;
   document.getElementById('videoFileName').textContent = m.videoUrl ? '✓ လက်ရှိ video ကို ဆက်သုံးမည် (မပြောင်းလိုလျှင် ဒီနေရာကို ချန်ထားပါ)' : '';
@@ -1245,12 +1262,17 @@ function renderAdminMoviesList(){
 
   list.innerHTML = filtered.map(({ id, m }) => {
     const seriesTag = m.category === 'drama' && m.seriesName ? ` · ${esc(m.seriesName)}${m.episodeNumber ? ' Ep '+m.episodeNumber : ''}` : '';
-    const originLabel = m.category === 'adult' ? ' · ' + (m.origin === 'myanmar' ? '🇲🇲 Myanmar' : m.origin === 'japan' ? '🇯🇵 Japan' : '🌍 International') : '';
+    // 18+ row မှာ ဒေသကို တန်းပြင်လို့ရတဲ့ dropdown (ရှိပြီးသား video တွေကို တစ်ခုချင်း edit form မဖွင့်ဘဲ ခွဲနိုင်အောင်)
+    const regionPick = m.category === 'adult' ? `<select class="region-pick" data-id="${id}" aria-label="18+ ဒေသ" style="margin-top:6px;max-width:170px;font-size:12px;padding:4px 6px;${m.region ? '' : 'border-color:var(--gold);'}">
+          <option value=""${m.region ? '' : ' selected'}>${m.region ? '— ဒေသ မသတ်မှတ် —' : '⚠ ဒေသ မသတ်မှတ်ရသေး'}</option>
+          ${Object.keys(REGION_LABEL).map(k => `<option value="${k}"${m.region === k ? ' selected' : ''}>${REGION_LABEL[k]}</option>`).join('')}
+        </select>` : '';
     return `<div class="list-item">
       <img class="list-thumb" loading="lazy" src="${m.thumbUrl ? esc(m.thumbUrl) : PLACEHOLDER_THUMB}" onerror="this.src='${PLACEHOLDER_THUMB}'">
       <div class="list-info">
-        <div class="t">${esc(m.title)}${m.featured ? ' ⭐' : ''}${m.isPremium ? ' <span style="color:var(--gold);">★ Premium</span>' : ''}${m.sourceUrl ? ' <span style="color:var(--gold);">🌐 ' + esc(m.sourceSite || 'Source') + '</span>' : ''}</div>
-        <div class="m">${CATEGORY_LABEL[m.category] || ''}${seriesTag}${originLabel} ${m.duration ? '• '+esc(m.duration) : ''}</div>
+        <div class="t">${esc(m.title)}${m.featured ? ' ⭐' : ''}${m.isPremium ? ' <span style="color:var(--gold);">★ Premium</span>' : ''}</div>
+        <div class="m">${CATEGORY_LABEL[m.category] || ''}${m.category === 'adult' && REGION_LABEL[m.region] ? ' · ' + REGION_LABEL[m.region] : ''}${seriesTag} ${m.duration ? '• '+esc(m.duration) : ''}</div>
+        ${regionPick}
       </div>
       <div class="list-actions">
         <button class="edit-btn" data-id="${id}">ပြင်မည်</button>
@@ -1259,6 +1281,18 @@ function renderAdminMoviesList(){
     </div>`;
   }).join('');
 
+  list.querySelectorAll('.region-pick').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      const id = sel.dataset.id; const val = sel.value || null;
+      sel.disabled = true;
+      try{
+        await db.collection('movies').doc(id).update({ region: val });
+        catalogQueue(id, 'upsert');
+        showToast(val ? 'ဒေသ သတ်မှတ်ပြီးပါပြီ — ' + REGION_LABEL[val] : 'ဒေသ ဖယ်ပြီးပါပြီ', 'ok');
+      }catch(err){ showToast('ဒေသ ပြောင်း၍ မရပါ — ' + err.message); }
+      finally{ sel.disabled = false; }
+    });
+  });
   list.querySelectorAll('.edit-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id;
@@ -1305,17 +1339,16 @@ function listenPremiumRequests(){
       const r = d.data();
       const isPending = r.status === 'pending';
       const planInfo = r.planLabel ? `${esc(r.planLabel)}${r.planPrice ? ' · ' + r.planPrice.toLocaleString() + ' MMK' : ''}` : '';
-      const isSeries = r.type === 'series';
       const isLifetime = r.planId === 'lifetime';
       return `<div class="req-item">
         <div class="req-info">
           <div class="t">${esc(r.email)}</div>
-          <div class="m">${isSeries ? '📺 <b>Series</b> · ' : ''}${esc(r.paymentMethod)}${planInfo ? ' · ' + planInfo : ''} · <span class="req-status ${r.status}">${r.status}</span></div>
+          <div class="m">${esc(r.paymentMethod)}${planInfo ? ' · ' + planInfo : ''} · <span class="req-status ${r.status}">${r.status}</span></div>
           <div class="txn">Txn ID (နောက်ဆုံး ၄ လုံး): ${esc(r.transactionId)}</div>
         </div>
         ${isPending ? `<div class="req-actions">
-          <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-plandays="${isLifetime ? 'lifetime' : (r.planDays || '')}" data-planlabel="${esc(r.planLabel || '')}" data-type="${isSeries ? 'series' : 'subscription'}" data-seriesname="${esc(r.seriesName || '')}" data-seriesprice="${r.seriesPrice || ''}">✓ Approve</button>
-          <button class="reject-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-type="${isSeries ? 'series' : 'subscription'}" data-seriesname="${esc(r.seriesName || '')}">✕ Reject</button>
+          <button class="approve-btn" data-id="${d.id}" data-uid="${esc(r.uid)}" data-plandays="${isLifetime ? 'lifetime' : (r.planDays || '')}" data-planlabel="${esc(r.planLabel || '')}">✓ Approve</button>
+          <button class="reject-btn" data-id="${d.id}" data-uid="${esc(r.uid)}">✕ Reject</button>
         </div>` : `<div class="req-actions">
           <button class="reject-btn delete-req-btn" data-id="${d.id}">🗑 Delete</button>
         </div>`}
@@ -1326,24 +1359,6 @@ function listenPremiumRequests(){
       btn.addEventListener('click', async () => {
         const { id, uid, plandays, planlabel } = btn.dataset;
         try{
-          // ---- Series purchase approve: subscription မပေးဘဲ ဒီ series ကို ဖွင့်ပေးမယ် ----
-          if(btn.dataset.type === 'series'){
-            const seriesName = btn.dataset.seriesname || '';
-            const seriesPrice = btn.dataset.seriesprice ? Number(btn.dataset.seriesprice) : null;
-            if(!seriesName) throw new Error('Series အမည် မတွေ့ပါ');
-            await db.collection('seriesPurchases').add({
-              uid, seriesName, seriesPrice,
-              status: 'approved', requestId: id,
-              purchasedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            await db.collection('premiumRequests').doc(id).update({
-              status: 'approved', reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            const pr = await sendUserPush(uid, '🎉 Series ဝယ်ယူမှု အတည်ပြုပြီးပါပြီ',
-              '📺 ' + seriesName + ' — အပိုင်းအားလုံး ကြည့်လို့ရပါပြီ');
-            showToast('Series approve လုပ်ပြီးပါပြီ' + pushToastSuffix(pr), 'ok');
-            return;
-          }
           const userRef = db.collection('users').doc(uid);
           const userSnap = await userRef.get();
           const ud = userSnap.exists ? userSnap.data() : {};
@@ -1387,10 +1402,8 @@ function listenPremiumRequests(){
           await db.collection('premiumRequests').doc(btn.dataset.id).update({
             status: 'rejected', reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
-          const isSeriesReq = btn.dataset.type === 'series';
-          const pr = await sendUserPush(btn.dataset.uid,
-            isSeriesReq ? '⚠️ Series ဝယ်ယူမှု request ကို လက်မခံနိုင်ပါ' : '⚠️ Premium request ကို လက်မခံနိုင်ပါ',
-            (isSeriesReq && btn.dataset.seriesname ? '📺 ' + btn.dataset.seriesname + ' — ' : '') + 'Transaction ID ပြန်စစ်ပြီး ထပ်တင်ပါ၊ မရရင် Support ကို ဆက်သွယ်ပါ');
+          const pr = await sendUserPush(btn.dataset.uid, '⚠️ Premium request ကို လက်မခံနိုင်ပါ',
+            'Transaction ID ပြန်စစ်ပြီး ထပ်တင်ပါ၊ မရရင် Support ကို ဆက်သွယ်ပါ');
           showToast('Request reject လုပ်ပြီးပါပြီ' + pushToastSuffix(pr), 'ok');
         }catch(err){ showToast('Reject မလုပ်နိုင်ပါ — ' + err.message); }
       });
@@ -1715,6 +1728,72 @@ function listenAdultPins(){
   });
 }
 
+/* ---------- Announcement marquee (settings/announcement) ---------- */
+let currentAnnounce = null;
+let annDirty = false;     // Admin စာရိုက်နေတုန်း Firestore snapshot က ရိုက်ထားတာကို ပြန်မဖျက်စေဖို့
+
+function annLines(raw){ return String(raw || '').replace(/\r/g, '').split('\n').map(t => t.trim()).filter(Boolean); }
+function annRefreshPreview(){
+  const ta = document.getElementById('fAnnText');
+  document.getElementById('annCount').textContent = `(${ta.value.length} / 600)`;
+  document.getElementById('annPreviewText').textContent = annLines(ta.value).join('   ✦   ') || '(စာမရှိသေးပါ)';
+}
+function annRefreshState(){
+  const el = document.getElementById('annState');
+  const d = currentAnnounce;
+  if(!d){ el.textContent = 'လက်ရှိ: စာတန်း မရှိသေးပါ'; el.style.color = 'var(--ink-dim)'; return; }
+  const n = annLines(d.text).length;
+  if(d.enabled && n){ el.textContent = `လက်ရှိ: ✓ Site မှာ ပြနေသည် (${n} ခု)`; el.style.color = '#3ecf8e'; }
+  else { el.textContent = 'လက်ရှိ: မပြထားပါ (Disabled)'; el.style.color = 'var(--gold)'; }
+}
+function listenAnnounce(){
+  db.collection('settings').doc('announcement').onSnapshot(doc => {
+    currentAnnounce = doc.exists ? doc.data() : null;
+    if(!annDirty){
+      document.getElementById('fAnnText').value = currentAnnounce && currentAnnounce.text ? currentAnnounce.text : '';
+      document.getElementById('fAnnSpeed').value = (currentAnnounce && currentAnnounce.speed) || 'normal';
+      document.getElementById('fAnnEnabled').value = !currentAnnounce || currentAnnounce.enabled ? 'yes' : 'no';
+      annRefreshPreview();
+    }
+    annRefreshState();
+  });
+}
+['fAnnText', 'fAnnSpeed', 'fAnnEnabled'].forEach(id => document.getElementById(id).addEventListener('input', () => { annDirty = true; annRefreshPreview(); }));
+
+document.getElementById('annSaveBtn').addEventListener('click', async () => {
+  const lines = annLines(document.getElementById('fAnnText').value);
+  const okEl = document.getElementById('annStatusOk'), errEl = document.getElementById('annStatusErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+  if(!lines.length){ errEl.textContent = 'ပြမယ့် စာတန်း တစ်ကြောင်းတော့ ရေးပါ'; errEl.classList.add('show'); return; }
+  const btn = document.getElementById('annSaveBtn');
+  btn.disabled = true; btn.textContent = 'သိမ်းနေသည်...';
+  try{
+    await db.collection('settings').doc('announcement').set({
+      text: lines.join('\n'),
+      speed: document.getElementById('fAnnSpeed').value,
+      enabled: document.getElementById('fAnnEnabled').value === 'yes',
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    annDirty = false;
+    okEl.classList.add('show'); setTimeout(() => okEl.classList.remove('show'), 3500);
+  }catch(err){
+    errEl.textContent = 'စာတန်း သိမ်း၍ မရပါ — ' + err.message; errEl.classList.add('show');
+  }finally{
+    btn.disabled = false; btn.textContent = '💾 စာတန်း သိမ်းမည်';
+  }
+});
+document.getElementById('annRemoveBtn').addEventListener('click', async () => {
+  if(!currentAnnounce){ showToast('စာတန်း မရှိသေးပါ'); return; }
+  if(!confirm('စာတန်းကို ဖျက်မှာ သေချာပါသလား? (ပြန်ပြချင်ရင် ထပ်ရေးရမယ်)')) return;
+  try{
+    await db.collection('settings').doc('announcement').delete();
+    annDirty = false;
+    document.getElementById('fAnnText').value = '';
+    annRefreshPreview();
+    showToast('စာတန်း ဖျက်ပြီးပါပြီ', 'ok');
+  }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
+});
+
 /* ---------- Promo Banner ---------- */
 let bannerFile = null;
 let currentBannerData = null;
@@ -1791,62 +1870,6 @@ document.getElementById('bannerRemoveBtn').addEventListener('click', async () =>
     document.getElementById('fBannerLink').value = '';
     document.getElementById('fBannerEnabled').value = 'yes';
     showToast('Banner ဖျက်ပြီးပါပြီ', 'ok');
-  }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
-});
-
-/* ---------- Announcement Ticker ---------- */
-/* Main site (index.html) က settings/announcement doc ကို onSnapshot နဲ့
-   နားထောင်ထားတယ် — ဒီကနေ Save လုပ်တာနဲ့ user တွေဆီ refresh မလုပ်ဘဲ ပေါ်တယ်.
-   Banner panel ပုံစံအတိုင်းပဲ: settings/{id} ကို admin ပဲ write လုပ်လို့ရ. */
-let currentAnnounceData = null;
-
-function listenAnnouncement(){
-  db.collection('settings').doc('announcement').onSnapshot(doc => {
-    currentAnnounceData = doc.exists ? doc.data() : null;
-    // စာရိုက်နေတုန်း snapshot ပြန်လာပြီး ရိုက်နေတဲ့စာ ပျက်မသွားအောင် focus စစ်တယ်
-    if(document.activeElement !== document.getElementById('fAnnounceText')){
-      document.getElementById('fAnnounceText').value = currentAnnounceData ? (currentAnnounceData.text || '') : '';
-    }
-    document.getElementById('fAnnounceEnabled').value = (currentAnnounceData && currentAnnounceData.enabled === false) ? 'no' : 'yes';
-  });
-}
-
-document.getElementById('announceSaveBtn').addEventListener('click', async () => {
-  const text = document.getElementById('fAnnounceText').value.trim();
-  const enabled = document.getElementById('fAnnounceEnabled').value === 'yes';
-  const okEl = document.getElementById('announceStatusOk');
-  const errEl = document.getElementById('announceStatusErr');
-  okEl.classList.remove('show'); errEl.classList.remove('show');
-  if(!text){
-    errEl.textContent = 'ကြေညာစာ ရိုက်ထည့်ပါ — ဖျက်ချင်ရင် ဖျက်မည် နှိပ်ပါ';
-    errEl.classList.add('show');
-    return;
-  }
-  const saveBtn = document.getElementById('announceSaveBtn');
-  saveBtn.disabled = true; saveBtn.textContent = 'သိမ်းနေသည်...';
-  try{
-    await db.collection('settings').doc('announcement').set({
-      text, enabled,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    okEl.classList.add('show');
-    setTimeout(() => okEl.classList.remove('show'), 3000);
-  }catch(err){
-    errEl.textContent = 'ကြေညာစာ သိမ်း၍ မရပါ — ' + err.message;
-    errEl.classList.add('show');
-  }finally{
-    saveBtn.disabled = false; saveBtn.textContent = '💾 ကြေညာစာ သိမ်းမည်';
-  }
-});
-
-document.getElementById('announceRemoveBtn').addEventListener('click', async () => {
-  if(!currentAnnounceData){ showToast('ကြေညာစာ မရှိသေးပါ'); return; }
-  if(!confirm('ကြေညာစာကို ဖျက်မှာ သေချာပါသလား?')) return;
-  try{
-    await db.collection('settings').doc('announcement').delete();
-    document.getElementById('fAnnounceText').value = '';
-    document.getElementById('fAnnounceEnabled').value = 'yes';
-    showToast('ကြေညာစာ ဖျက်ပြီးပါပြီ', 'ok');
   }catch(err){ showToast('ဖျက်၍ မရပါ — ' + err.message); }
 });
 
